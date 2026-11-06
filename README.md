@@ -62,19 +62,24 @@ Le même moteur de rendu (Rust, compilé en WebAssembly) et la même interface s
 | Export PDF / HTML, plein écran, zoom loupe | ✅ | — (VS Code a ses propres zoom et plein écran) |
 | Sommaire, recherche, maths, thèmes, rechargement auto | ✅ | ✅ |
 
-Installer l'extension : génère le `.vsix` (voir plus bas), puis :
+Installer l'extension :
+
+1. Télécharge `mdreader-1.0.0.vsix` dans les [Releases](https://github.com/joshsssn/MDReader/releases/latest).
+2. Dans VS Code : `Ctrl+Maj+P` → **Extensions: Install from VSIX…** et choisis le fichier. Ou en ligne de commande :
 
 ```
 code --install-extension mdreader-1.0.0.vsix
 ```
 
-Clic droit sur un `.md` → **Ouvrir avec… → MDReader**. Pour en faire l'éditeur par défaut :
+3. Clic droit sur un `.md` → **Ouvrir avec… → MDReader**.
+
+Pour en faire l'éditeur par défaut :
 
 ```json
 "workbench.editorAssociations": { "*.md": "mdreader.viewer" }
 ```
 
-Générer le `.vsix` (Rust avec la cible `wasm32-unknown-unknown`, et Node) :
+Pour générer le `.vsix` toi-même (Rust avec la cible `wasm32-unknown-unknown`, et Node) :
 
 ```
 rustup target add wasm32-unknown-unknown
