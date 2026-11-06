@@ -37,7 +37,7 @@ Le Markdown est converti en Rust ([pulldown-cmark](https://github.com/pulldown-c
 
 ## Utilisation
 
-Télécharge `MDReader.exe` depuis les [Releases](https://github.com/joshsssn/MDReader/releases) et lance-le. Pour ouvrir un fichier : glisse un `.md` sur l'exe ou dans la fenêtre, Ctrl+O, ou « Ouvrir avec » dans l'Explorateur.
+Télécharger `MDReader.exe` depuis les [Releases](https://github.com/joshsssn/MDReader/releases) et le lancer. Pour ouvrir un fichier : le glisser sur l'exe ou dans la fenêtre, `Ctrl+O`, ou « Ouvrir avec » dans l'Explorateur.
 
 Les réglages sont stockés dans un dossier `MDR-data` créé à côté de l'exe (supprimable à tout moment).
 
@@ -64,8 +64,8 @@ Le même moteur de rendu (Rust, compilé en WebAssembly) et la même interface s
 
 Installer l'extension :
 
-1. Télécharge `mdreader-1.0.0.vsix` dans les [Releases](https://github.com/joshsssn/MDReader/releases/latest).
-2. Dans VS Code : `Ctrl+Maj+P` → **Extensions: Install from VSIX…** et choisis le fichier. Ou en ligne de commande :
+1. Télécharger `mdreader-1.0.0.vsix` depuis les [Releases](https://github.com/joshsssn/MDReader/releases/latest).
+2. Dans VS Code : `Ctrl+Maj+P` → **Extensions: Install from VSIX…**, puis sélectionner le fichier. Ou en ligne de commande :
 
 ```
 code --install-extension mdreader-1.0.0.vsix
@@ -79,7 +79,7 @@ Pour en faire l'éditeur par défaut :
 "workbench.editorAssociations": { "*.md": "mdreader.viewer" }
 ```
 
-Pour générer le `.vsix` toi-même (Rust avec la cible `wasm32-unknown-unknown`, et Node) :
+Générer le `.vsix` depuis les sources (Rust avec la cible `wasm32-unknown-unknown`, et Node) :
 
 ```
 rustup target add wasm32-unknown-unknown
@@ -89,17 +89,26 @@ npm run package
 
 ## Version web et mobile (PWA)
 
-**<https://joshsssn.github.io/MDReader/>** : MDReader dans le navigateur, sans compte ni serveur. Le Markdown est converti **sur ton appareil** par le même moteur Rust (WebAssembly) : le fichier n'est jamais envoyé nulle part. Une fois chargée, l'appli fonctionne hors ligne.
+**<https://joshsssn.github.io/MDReader/>** : MDReader dans le navigateur, sans compte ni serveur. Le Markdown est converti **localement sur l'appareil** par le même moteur Rust (WebAssembly) : aucun fichier n'est transmis. Après la première visite, l'application fonctionne hors ligne.
 
-**Installer sur iPhone / iPad** : ouvre le lien dans **Safari**, touche **Partager** puis **Sur l'écran d'accueil**.
-**Sur Android** : ouvre le lien dans Chrome, menu ⋮ puis **Installer l'application**.
-**Sur ordinateur** : Chrome ou Edge, icône d'installation dans la barre d'adresse.
+Installation :
 
-Touche **Ouvrir** pour choisir un `.md` (Fichiers, iCloud Drive, etc.). Les derniers documents sont gardés dans le navigateur (jamais envoyés), avec ta position de lecture.
+- **iPhone / iPad** : ouvrir le lien dans Safari, puis **Partager → Sur l'écran d'accueil**.
+- **Android** : ouvrir le lien dans Chrome, puis menu ⋮ → **Installer l'application**.
+- **Ordinateur** : Chrome ou Edge, icône d'installation dans la barre d'adresse.
 
-Limites : pas de rechargement automatique quand le fichier change, pas d'images locales (celles en `https://` s'affichent), pas d'export HTML. « Exporter en PDF » ouvre l'impression du navigateur (sur iPhone : Partager → Enregistrer dans Fichiers). Sur ordinateur avec Chrome/Edge, l'appli installée peut s'ouvrir directement depuis un `.md`.
+Le bouton **Ouvrir** permet de choisir un `.md` (Fichiers, iCloud Drive, etc.). Les 15 derniers documents et la position de lecture sont conservés dans le navigateur, sur l'appareil.
 
-Construire la PWA toi-même :
+Limites de la version web :
+
+- pas de rechargement automatique lorsque le fichier change ;
+- pas d'images locales (les images en `https://` s'affichent) ;
+- pas d'export HTML ;
+- « Exporter en PDF » ouvre l'impression du navigateur (iPhone : Partager → Enregistrer dans Fichiers).
+
+Sur ordinateur, l'application installée via Chrome ou Edge peut être associée aux fichiers `.md`.
+
+Construire la PWA depuis les sources :
 
 ```
 rustup target add wasm32-unknown-unknown
