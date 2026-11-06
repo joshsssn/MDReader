@@ -4,7 +4,7 @@
 
 <p align="center">Lecteur Markdown portable et ultra-rapide pour Windows — un seul <code>.exe</code> de 2 Mo, sans installation.</p>
 
-<p align="center"><a href="https://github.com/joshsssn/MDReader/releases/latest"><b>⬇ Télécharger MDReader.exe</b></a></p>
+<p align="center"><a href="https://github.com/joshsssn/MDReader/releases/latest"><b>⬇ Télécharger MDReader.exe</b></a> &nbsp;·&nbsp; <a href="#extension-vs-code"><b>🧩 Extension VS Code</b></a></p>
 
 ![MDReader, thème Papier](docs/screenshot-papier.png)
 
@@ -51,6 +51,37 @@ MDReader.exe --pdf fichier.md sortie.pdf     export PDF
 
 Prérequis : Windows 10 ou 11 avec le runtime WebView2 (installé par défaut sur Windows 11).
 
+## Extension VS Code
+
+Le même moteur de rendu (Rust, compilé en WebAssembly) et la même interface sont aussi disponibles comme extension VS Code, dans [`vscode/`](vscode). Deux façons d'utiliser MDReader, au choix :
+
+| | Application Windows | Extension VS Code |
+|---|---|---|
+| Installation | aucune, un `.exe` portable | fichier `.vsix` |
+| Plateformes | Windows 10 / 11 | partout où VS Code tourne |
+| Export PDF / HTML, plein écran, zoom loupe | ✅ | — (VS Code a ses propres zoom et plein écran) |
+| Sommaire, recherche, maths, thèmes, rechargement auto | ✅ | ✅ |
+
+Installer l'extension : génère le `.vsix` (voir plus bas), puis :
+
+```
+code --install-extension mdreader-1.0.0.vsix
+```
+
+Clic droit sur un `.md` → **Ouvrir avec… → MDReader**. Pour en faire l'éditeur par défaut :
+
+```json
+"workbench.editorAssociations": { "*.md": "mdreader.viewer" }
+```
+
+Générer le `.vsix` (Rust avec la cible `wasm32-unknown-unknown`, et Node) :
+
+```
+rustup target add wasm32-unknown-unknown
+cd vscode
+npm run package
+```
+
 ## Raccourcis
 
 | Touche | Action |
@@ -76,7 +107,7 @@ cargo build --release
 
 L'exe est produit dans `target/release/MDReader.exe` (CRT lié statiquement, icône intégrée via `build.rs`).
 
-Structure : [`src/render.rs`](src/render.rs) (Markdown → HTML, sommaire), [`src/main.rs`](src/main.rs) (fenêtre, fichiers, exports), [`assets/`](assets) (interface : HTML, CSS, JS, KaTeX).
+Structure : [`src/render.rs`](src/render.rs) (Markdown → HTML, sommaire), [`src/main.rs`](src/main.rs) (fenêtre, fichiers, exports), [`assets/`](assets) (interface : HTML, CSS, JS, KaTeX), [`vscode/`](vscode) (extension VS Code, qui réutilise `render.rs` et `assets/`).
 
 ## Licence
 

@@ -1,0 +1,7 @@
+node_modules/
+wasm/target/
+wasm/Cargo.lock
+media/
+icon.png
+LICENSE
+*.vsix

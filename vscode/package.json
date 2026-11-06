@@ -1,0 +1,65 @@
+{
+  "name": "mdreader",
+  "displayName": "MDReader",
+  "description": "Lecteur Markdown rapide (moteur Rust/WASM) : sommaire, maths KaTeX, 7 thèmes, recherche instantanée.",
+  "version": "1.0.0",
+  "publisher": "joshsssn",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/joshsssn/MDReader"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "mdreader.viewer",
+        "displayName": "MDReader",
+        "selector": [
+          {
+            "filenamePattern": "*.{md,markdown,mdown,mkd,mdx}"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {
+        "command": "mdreader.open",
+        "title": "MDReader : ouvrir ce fichier dans MDReader"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "mdreader.open",
+          "when": "resourceLangId == markdown",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "mdreader.open",
+          "when": "resourceLangId == markdown",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build:wasm": "cargo build --release --target wasm32-unknown-unknown --manifest-path wasm/Cargo.toml",
+    "sync": "node scripts/sync-assets.js",
+    "build": "npm run build:wasm && npm run sync",
+    "package": "npm run build && vsce package"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.0.0"
+  }
+}

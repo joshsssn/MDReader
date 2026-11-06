@@ -1,0 +1,4 @@
+wasm/**
+scripts/**
+node_modules/**
+.vscode/**
