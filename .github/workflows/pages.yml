@@ -1,0 +1,40 @@
+name: Déployer la PWA
+
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', 'assets/**', 'src/render.rs', 'vscode/wasm/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust + cible WebAssembly
+        run: rustup target add wasm32-unknown-unknown
+      - name: Compiler le moteur en WASM
+        run: cargo build --release --target wasm32-unknown-unknown --manifest-path vscode/wasm/Cargo.toml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Assembler la PWA
+        run: node web/build.js
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+      - id: deployment
+        uses: actions/deploy-pages@v4

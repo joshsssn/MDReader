@@ -4,7 +4,7 @@
 
 <p align="center">Lecteur Markdown portable et ultra-rapide pour Windows — un seul <code>.exe</code> de 2 Mo, sans installation.</p>
 
-<p align="center"><a href="https://github.com/joshsssn/MDReader/releases/latest"><b>⬇ Télécharger MDReader.exe</b></a> &nbsp;·&nbsp; <a href="#extension-vs-code"><b>🧩 Extension VS Code</b></a></p>
+<p align="center"><a href="https://github.com/joshsssn/MDReader/releases/latest"><b>⬇ Télécharger MDReader.exe</b></a> &nbsp;·&nbsp; <a href="#extension-vs-code"><b>🧩 Extension VS Code</b></a> &nbsp;·&nbsp; <a href="https://joshsssn.github.io/MDReader/"><b>📱 Version web / mobile</b></a></p>
 
 ![MDReader, thème Papier](docs/screenshot-papier.png)
 
@@ -87,6 +87,28 @@ cd vscode
 npm run package
 ```
 
+## Version web et mobile (PWA)
+
+**<https://joshsssn.github.io/MDReader/>** : MDReader dans le navigateur, sans compte ni serveur. Le Markdown est converti **sur ton appareil** par le même moteur Rust (WebAssembly) : le fichier n'est jamais envoyé nulle part. Une fois chargée, l'appli fonctionne hors ligne.
+
+**Installer sur iPhone / iPad** : ouvre le lien dans **Safari**, touche **Partager** puis **Sur l'écran d'accueil**.
+**Sur Android** : ouvre le lien dans Chrome, menu ⋮ puis **Installer l'application**.
+**Sur ordinateur** : Chrome ou Edge, icône d'installation dans la barre d'adresse.
+
+Touche **Ouvrir** pour choisir un `.md` (Fichiers, iCloud Drive, etc.). Les derniers documents sont gardés dans le navigateur (jamais envoyés), avec ta position de lecture.
+
+Limites : pas de rechargement automatique quand le fichier change, pas d'images locales (celles en `https://` s'affichent), pas d'export HTML. « Exporter en PDF » ouvre l'impression du navigateur (sur iPhone : Partager → Enregistrer dans Fichiers). Sur ordinateur avec Chrome/Edge, l'appli installée peut s'ouvrir directement depuis un `.md`.
+
+Construire la PWA toi-même :
+
+```
+rustup target add wasm32-unknown-unknown
+cargo build --release --target wasm32-unknown-unknown --manifest-path vscode/wasm/Cargo.toml
+node web/build.js        # résultat dans web/dist
+```
+
+Le déploiement sur GitHub Pages est automatique à chaque push (`.github/workflows/pages.yml`).
+
 ## Raccourcis
 
 | Touche | Action |
@@ -112,7 +134,7 @@ cargo build --release
 
 L'exe est produit dans `target/release/MDReader.exe` (CRT lié statiquement, icône intégrée via `build.rs`).
 
-Structure : [`src/render.rs`](src/render.rs) (Markdown → HTML, sommaire), [`src/main.rs`](src/main.rs) (fenêtre, fichiers, exports), [`assets/`](assets) (interface : HTML, CSS, JS, KaTeX), [`vscode/`](vscode) (extension VS Code, qui réutilise `render.rs` et `assets/`).
+Structure : [`src/render.rs`](src/render.rs) (Markdown → HTML, sommaire), [`src/main.rs`](src/main.rs) (fenêtre, fichiers, exports), [`assets/`](assets) (interface : HTML, CSS, JS, KaTeX), [`vscode/`](vscode) (extension VS Code) et [`web/`](web) (PWA), qui réutilisent `render.rs` et `assets/`.
 
 ## Licence
 

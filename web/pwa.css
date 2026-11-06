@@ -1,0 +1,17 @@
+/* Adaptations PWA / mobile (chargé après app.css) */
+#bFull, #bZoom, #pZoom, #pExport [data-act="html"], .welcome .open kbd, .welcome .drop { display: none !important; }
+@media (min-width: 821px) { .welcome .drop { display: block !important; } }
+
+@media (max-width: 820px) {
+  :root { --side-w: min(86vw, 330px) !important; }
+  #main, body.noside #main { margin-left: 0 !important; }
+  #resizer { display: none !important; }
+  #side { box-shadow: 0 0 40px rgba(0, 0, 0, .35); padding-bottom: env(safe-area-inset-bottom); }
+  body.noside #side { box-shadow: none; }
+  #content { padding: 22px 18px 40vh !important; }
+  [data-width="full"] #content { padding-left: 18px !important; padding-right: 18px !important; }
+  .ib { min-width: 40px; min-height: 40px; }
+  #toc a { padding-top: 9px; padding-bottom: 9px; }
+  .welcome { margin-top: 5vh; padding: 0 18px; }
+  .welcome .open { width: 100%; padding: 14px 18px; }
+}
