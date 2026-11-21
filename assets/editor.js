@@ -1276,7 +1276,7 @@
   const pCall = el('div', { class: 'pop menu epop', id: 'pCall' }, CALLS.map(([v, n, c]) => `<button data-v="${v}"><i style="background:${c}"></i><span>${n}</span></button>`).join(''));
   const pGrid = el('div', { class: 'pop epop', id: 'pGrid' }, '<div class="grid">' + '<i></i>'.repeat(48) + '</div><div class="lbl">Tableau</div>');
   const pLink = el('div', { class: 'pop epop', id: 'pLink' }, '<div class="efield"><input id="lText" placeholder="Texte du lien" spellcheck="false"><input id="lUrl" placeholder="https://… ou fichier.md" spellcheck="false"><div class="row"><button class="ebtn" id="lDel">Retirer le lien</button><button class="ebtn pri" id="lOk">Appliquer</button></div></div>');
-  const pMath = el('div', { class: 'pop epop', id: 'pMath' }, '<div class="efield"><textarea id="mTex" rows="2" placeholder="LaTeX, par ex. \\frac{a}{b}" spellcheck="false"></textarea><div id="mPrev"></div><div class="row"><span class="hint">Entrée pour valider · Maj+Entrée : nouvelle ligne</span><button class="ebtn pri" id="mOk">OK</button></div></div>');
+  const pMath = el('div', { class: 'pop epop', id: 'pMath' }, '<div class="efield"><div id="mPrev"></div><textarea id="mTex" rows="2" placeholder="LaTeX, par ex. \\frac{a}{b} — ou clique sur les symboles" spellcheck="false"></textarea><div id="mTabs"></div><div id="mGrid"></div><div class="row"><span class="hint">Entrée : valider · Tab : champ suivant · Maj+Entrée : ligne</span><button class="ebtn pri" id="mOk">OK</button></div></div>');
   const tblBar = el('div', { id: 'tblBar' }, [['row', 'rowAdd', 'Ajouter une ligne dessous'], ['col', 'colAdd', 'Ajouter une colonne à droite'], ['delrow', 'rowDel', 'Supprimer la ligne'], ['delcol', 'colDel', 'Supprimer la colonne'], 0, ['left', 'alL', 'Aligner à gauche'], ['center', 'alC', 'Centrer'], ['right', 'alR', 'Aligner à droite'], 0, ['del', 'trash', 'Supprimer le tableau']]
     .map(t => (t ? `<button class="tb" data-a="${t[0]}" title="${t[2]}">${svg(t[1])}</button>` : '<span class="tsep"></span>')).join(''));
   body.append(pStyle, pCall, pGrid, pLink, pMath, tblBar);
@@ -1458,8 +1458,9 @@
     mathFor = m; mathNew = !!isNew;
     m.classList.add('sel');
     const ta = $('#mTex');
-    ta.value = texOf(m); ta.rows = m.classList.contains('math-display') ? 4 : 2;
+    ta.value = texOf(m); ta.rows = m.classList.contains('math-display') ? 3 : 2;
     previewMath();
+    showPal(mGrid.dataset.p && mGrid.dataset.p !== 'recent' ? mGrid.dataset.p : prefs.mathTab || 'struct');
     openPanel(pMath, m, cancel => {
       const node = mathFor; mathFor = null;
       if (!node || !node.isConnected) return;
@@ -1479,11 +1480,88 @@
     const pv = $('#mPrev'), tex = $('#mTex').value.trim();
     pv.classList.remove('err');
     if (!tex) { pv.textContent = ''; return; }
-    try { window.katex.render(tex, pv, { displayMode: mathFor && mathFor.classList.contains('math-display'), throwOnError: true, strict: 'ignore', output: 'html' }); }
+    try { window.katex.render(tex, pv, { displayMode: true, throwOnError: true, strict: 'ignore', output: 'html' }); }
     catch (err) { pv.classList.add('err'); pv.textContent = String(err && err.message || err).replace(/^KaTeX parse error: /, ''); }
   }
   $('#mTex').addEventListener('input', previewMath);
-  $('#mTex').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); closePanel(); } });
+  // ---- equation editor: palettes of symbols and structures ----
+  // An entry is a LaTeX snippet, or [snippet, what the button shows]. In a snippet, @ is
+  // where the caret goes (or the selected text); empty {} are the next fields (Tab).
+  const M2 = env => ['\\begin{' + env + '} @ &  \\\\  &  \\end{' + env + '}', '\\begin{' + env + '}\\square&\\square\\\\\\square&\\square\\end{' + env + '}'];
+  const PALS = [
+    ['struct', 'x² √', 'Exposants, fractions, racines', ['{@}^{}', '{@}_{}', '{@}_{}^{}', '\\frac{@}{}', '\\dfrac{@}{}', '\\sqrt{@}', '\\sqrt[]{@}', '\\binom{@}{}',
+      ['\\left| @ \\right|', '\\left|\\square\\right|'], ['\\left\\| @ \\right\\|', '\\left\\|\\square\\right\\|'], '\\overline{@}', '\\underline{@}', '\\overbrace{@}^{}', '\\underbrace{@}_{}',
+      '\\boxed{@}', '\\cancel{@}', ['\\text{@}', '\\text{abc}'], ['\\mathbf{@}', '\\mathbf{A}'], ['\\mathrm{@}', '\\mathrm{A}'], ['\\mathcal{@}', '\\mathcal{A}'], ['\\mathbb{@}', '\\mathbb{A}'], ['\\color{red}{@}', '\\color{red}{\\square}'], ['\\quad', '\\text{␣␣}'], ['\\\\', '\\hookleftarrow']]],
+    ['big', '∑ ∫', 'Sommes, intégrales, limites, dérivées', ['\\sum_{@}^{}', ['\\sum_{i=1}^{n} @', '\\sum_{i=1}^{n}'], '\\prod_{@}^{}', '\\int @', '\\int_{@}^{}', ['\\int_{a}^{b} @ \\,\\mathrm{d}x', '\\int_a^b\\!\\square\\,\\mathrm{d}x'], '\\iint_{@}', '\\iiint_{@}', '\\oint_{@}',
+      ['\\lim_{@ \\to }', '\\lim_{\\square\\to\\square}'], ['\\lim_{n \\to \\infty} @', '\\lim_{n\\to\\infty}'], ['\\lim_{x \\to 0} @', '\\lim_{x\\to 0}'], '\\max_{@}', '\\min_{@}', '\\sup_{@}', '\\inf_{@}', '\\bigcup_{@}^{}', '\\bigcap_{@}^{}',
+      ['\\frac{\\mathrm{d} @}{\\mathrm{d}x}', '\\frac{\\mathrm{d}}{\\mathrm{d}x}'], ['\\frac{\\mathrm{d}^2 @}{\\mathrm{d}x^2}', '\\frac{\\mathrm{d}^2}{\\mathrm{d}x^2}'], ['\\frac{\\partial @}{\\partial x}', '\\frac{\\partial}{\\partial x}'], ['\\frac{\\partial^2 @}{\\partial x^2}', '\\frac{\\partial^2}{\\partial x^2}'], ['\\left. @ \\right|_{}', '\\left.\\square\\right|_{\\square}'], ['\\,\\mathrm{d}x', '\\mathrm{d}x']]],
+    ['greek', 'αβγ', 'Lettres grecques', 'alpha beta gamma delta epsilon varepsilon zeta eta theta vartheta iota kappa lambda mu nu xi pi varpi rho varrho sigma tau upsilon phi varphi chi psi omega Gamma Delta Theta Lambda Xi Pi Sigma Upsilon Phi Psi Omega'.split(' ').map(x => '\\' + x)],
+    ['ops', '± ≤ ∈', 'Opérateurs, relations, ensembles', 'pm mp times div cdot ast circ bullet oplus otimes leq geq neq approx equiv sim simeq cong propto ll gg infty partial nabla forall exists nexists in notin ni subset subseteq supset supseteq cup cap emptyset setminus land lor neg angle perp parallel mid nmid ldots cdots vdots ddots hbar ell Re Im aleph prime dagger'.split(' ').map(x => '\\' + x)
+      .concat([['^\\circ', '{}^\\circ'], '\\mathbb{R}', '\\mathbb{N}', '\\mathbb{Z}', '\\mathbb{Q}', '\\mathbb{C}'])],
+    ['arrows', '→ ⇒', 'Flèches', 'to leftarrow leftrightarrow Rightarrow Leftarrow Leftrightarrow mapsto longrightarrow Longrightarrow longmapsto implies iff uparrow downarrow updownarrow Uparrow Downarrow nearrow searrow swarrow nwarrow hookrightarrow rightharpoonup rightleftharpoons leadsto'.split(' ').map(x => '\\' + x)
+      .concat(['\\xrightarrow{@}', '\\xleftarrow{@}', '\\overrightarrow{@}', '\\overleftarrow{@}'])],
+    ['delim', '( ) [ ]', 'Parenthèses, matrices, systèmes', [['\\left( @ \\right)', '\\left(\\square\\right)'], ['\\left[ @ \\right]', '\\left[\\square\\right]'], ['\\left\\{ @ \\right\\}', '\\left\\{\\square\\right\\}'], ['\\langle @ \\rangle', '\\langle\\square\\rangle'], ['\\lfloor @ \\rfloor', '\\lfloor\\square\\rfloor'], ['\\lceil @ \\rceil', '\\lceil\\square\\rceil'],
+      M2('pmatrix'), M2('bmatrix'), M2('vmatrix'), M2('matrix'),
+      ['\\begin{pmatrix} @ &  &  \\\\  &  &  \\\\  &  &  \\end{pmatrix}', '\\begin{pmatrix}\\square&\\square&\\square\\\\\\square&\\square&\\square\\\\\\square&\\square&\\square\\end{pmatrix}'],
+      ['\\begin{pmatrix} @ \\\\  \\end{pmatrix}', '\\begin{pmatrix}\\square\\\\\\square\\end{pmatrix}'],
+      ['\\begin{cases} @ & \\text{si }  \\\\  & \\text{sinon} \\end{cases}', '\\begin{cases}\\square&\\square\\\\\\square&\\square\\end{cases}'],
+      ['\\begin{aligned} @ &=  \\\\ &=  \\end{aligned}', '\\begin{aligned}\\square&=\\square\\\\&=\\square\\end{aligned}'],
+      ['\\begin{array}{c|c} @ &  \\\\ \\hline  &  \\end{array}', '\\begin{array}{c|c}\\square&\\square\\\\\\hline\\square&\\square\\end{array}']]],
+    ['accents', 'â ā', 'Accents et vecteurs', ['hat', 'bar', 'vec', 'dot', 'ddot', 'tilde', 'check', 'breve', 'acute', 'grave', 'widehat', 'widetilde', 'overrightarrow', 'mathring'].map(x => ['\\' + x + '{@}', '\\' + x + '{a}'])],
+    ['funcs', 'sin', 'Fonctions', 'sin cos tan cot sec csc arcsin arccos arctan sinh cosh tanh ln log exp det dim ker gcd deg arg'.split(' ').map(x => '\\' + x).concat(['\\log_{@}', ['\\operatorname{@}', '\\operatorname{f}'], 'e^{@}', ['e^{i\\pi}', 'e^{i\\pi}'], '10^{@}'])],
+  ];
+  const mTabs = $('#mTabs'), mGrid = $('#mGrid'), mTa = $('#mTex');
+  const shown = it => (Array.isArray(it) ? it[1] : it.replace('@', '').replace(/\{\}/g, '{\\square}').replace(/\[\]/g, '[\\square]'));
+  const snip = it => (Array.isArray(it) ? it[0] : it);
+  const cellHtml = new Map();
+  function cell(it, big) {
+    const sn = snip(it);
+    if (!cellHtml.has(sn)) {
+      let h; try { h = window.katex.renderToString((big ? '\\displaystyle ' : '') + shown(it), { throwOnError: false, strict: 'ignore', output: 'html' }); } catch (e) { h = esc(sn); }
+      cellHtml.set(sn, `<button class="mc" data-s="${esc(sn)}" title="${esc(sn.replace('@', '').replace(/\s+/g, ' '))}">${h}</button>`);
+    }
+    return cellHtml.get(sn);
+  }
+  const byShown = new Map(); PALS.forEach(p => p[3].forEach(it => byShown.set(snip(it), it)));
+  function showPal(id) {
+    const rec = (prefs.mathRecent || []).filter(x => typeof x === 'string').slice(0, 24);
+    if (id === 'recent' && !rec.length) id = 'struct';
+    if (!PALS.some(p => p[0] === id) && id !== 'recent') id = 'struct';
+    mTabs.innerHTML = (rec.length ? '<button data-p="recent" title="Récemment utilisés">Récents</button>' : '') + PALS.map(p => `<button data-p="${p[0]}" title="${p[2]}">${p[1]}</button>`).join('');
+    for (const b of mTabs.children) b.classList.toggle('on', b.dataset.p === id);
+    const items = id === 'recent' ? rec.map(x => byShown.get(x) || x) : PALS.find(p => p[0] === id)[3];
+    mGrid.className = id === 'delim' || id === 'big' ? 'wide' : '';
+    mGrid.innerHTML = items.map(it => cell(it, id === 'big')).join('');
+    mGrid.dataset.p = id;
+  }
+  function insertSnippet(sn) {
+    const a = mTa.selectionStart, picked = mTa.value.slice(a, mTa.selectionEnd), at = sn.indexOf('@');
+    let text = at >= 0 ? sn.replace('@', picked) : sn;
+    if (at < 0 && /\\[a-zA-Z]+$/.test(sn)) text += ' ';
+    mTa.focus();
+    document.execCommand('insertText', false, text);
+    let pos = a + text.length;
+    if (at >= 0 && !picked) pos = a + at;
+    else if (at >= 0) { const k = text.indexOf('{}', at + picked.length); if (k >= 0) pos = a + k + 1; }
+    mTa.setSelectionRange(pos, pos);
+    prefs.mathRecent = [sn].concat((prefs.mathRecent || []).filter(x => x !== sn)).slice(0, 24);
+    savePrefs();
+    previewMath();
+  }
+  for (const box of [mTabs, mGrid]) box.addEventListener('mousedown', e => e.preventDefault());      // the caret stays in the formula
+  mTabs.addEventListener('click', e => { const b = e.target.closest('[data-p]'); if (!b) return; prefs.mathTab = b.dataset.p; savePrefs(); showPal(b.dataset.p); placePanel(); });
+  mGrid.addEventListener('click', e => { const b = e.target.closest('.mc'); if (b) insertSnippet(b.dataset.s); });
+  mTa.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); closePanel(); return; }
+    if (e.key === 'Tab' && !e.ctrlKey && !e.altKey) {         // next (or previous) empty field
+      e.preventDefault();
+      const v = mTa.value, c = mTa.selectionStart;
+      const fields = []; for (const m of v.matchAll(/\{\}|\[\]|& {2}(?=\\\\|&|\\end)|\\\\ {2}(?=&)/g)) fields.push(m.index + (m[0][0] === '{' || m[0][0] === '[' ? 1 : m[0][0] === '&' ? 2 : 3));
+      const next = e.shiftKey ? fields.filter(f => f < c).pop() : fields.find(f => f > c);
+      if (next != null) mTa.setSelectionRange(next, next);
+      else if (!e.shiftKey) { const k = v.slice(c).search(/[}\]]/); const to = k >= 0 ? c + k + 1 : v.length; mTa.setSelectionRange(to, to); }
+    }
+  });
   $('#mOk').addEventListener('click', () => closePanel());
 
   /* =====================================================================
@@ -1644,7 +1722,7 @@
   if (keys) {
     keys.insertAdjacentHTML('beforeend', [
       ['Ctrl+E', 'Lecture / Édition'], ['Ctrl+Maj+E', 'Rendu / Source (Markdown)'], ['Ctrl+S · Ctrl+Maj+S', 'Enregistrer · Enregistrer sous'],
-      ['Ctrl+N', 'Nouveau document'], ['Ctrl+Z · Ctrl+Y', 'Annuler · Rétablir'], ['Ctrl+B / I / U · Ctrl+K', 'Gras, italique, souligné · Lien'],
+      ['Ctrl+N', 'Nouveau document'], ['Clic sur une formule', 'Éditeur d’équations (symboles, fractions, matrices…)'], ['Ctrl+Z · Ctrl+Y', 'Annuler · Rétablir'], ['Ctrl+B / I / U · Ctrl+K', 'Gras, italique, souligné · Lien'],
       ['# · - · 1. · > · ``` · $$', 'Titre, listes, citation, code, formule (en tapant)'], ['Ctrl+Maj+H', 'Exporter en HTML'],
     ].map(([k, d]) => `<tr><td>${k}</td><td>${d}</td></tr>`).join(''));
     for (const td of $$('td:first-child', keys)) if (td.textContent === 'Ctrl+S') td.parentNode.remove();

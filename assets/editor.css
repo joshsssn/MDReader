@@ -101,7 +101,27 @@ body.fs.reveal.tools #tools { transform: none; opacity: 1; pointer-events: auto;
 .ebtn:hover { background: var(--bg3); color: var(--fg); }
 .ebtn.pri { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
 .ebtn.pri:hover { filter: brightness(1.08); background: var(--accent); color: var(--bg); }
-#mPrev { min-height: 34px; max-height: 180px; overflow: auto; text-align: center; padding: 6px 4px; color: var(--fg); font-size: 15px; }
+/* Éditeur d'équations */
+#pMath .efield { width: min(560px, calc(100vw - 40px)); }
+#mPrev {
+  min-height: 62px; max-height: 170px; overflow: auto; display: grid; place-items: center; padding: 8px 10px; color: var(--fg); font-size: 17px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+}
+#mTabs { display: flex; gap: 2px; background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: 2px; overflow-x: auto; scrollbar-width: none; }
+#mTabs button { flex: 1 0 auto; border: 0; background: transparent; border-radius: 7px; padding: 6px 8px; cursor: pointer; color: var(--fg2); font: 13px/1 var(--serif); white-space: nowrap; }
+#mTabs button:hover { color: var(--fg); }
+#mTabs button.on { background: var(--bg3); color: var(--fg); font-weight: 600; }
+#mTabs button[data-p=recent] { font-family: var(--sans); font-size: 12px; }
+#mGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 4px; height: 176px; overflow-y: auto; align-content: start; padding-right: 2px; }
+#mGrid.wide { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+.mc {
+  min-height: 38px; display: grid; place-items: center; padding: 4px 3px; border: 1px solid var(--border); border-radius: 7px;
+  background: var(--bg); color: var(--fg); cursor: pointer; font-size: 13.5px; overflow: hidden;
+}
+#mGrid.wide .mc { min-height: 56px; font-size: 11.5px; }
+.mc:hover { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); border-color: var(--accent); }
+.mc .katex { font-size: 1em; }
+.mc .katex-display { margin: 0; }
 #mPrev:empty::before { content: "Aperçu"; color: var(--muted); font: 12.5px var(--sans); }
 #mPrev.err { color: #e5534b; font: 12.5px var(--sans); }
 
