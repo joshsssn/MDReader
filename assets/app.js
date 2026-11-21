@@ -121,7 +121,8 @@
 
   /* ---------------- Geometry helpers ---------------- */
   let fs = false;
-  const barH = () => (fs ? 0 : $('#bar').offsetHeight);
+  // app.barExtra: height of the editor's toolbar row, when shown.
+  const barH = () => (fs ? 0 : $('#bar').offsetHeight + (app.barExtra || 0));
   // The deepest content element at the top of the viewport.
   function topElement() {
     const r = content.getBoundingClientRect();
@@ -225,17 +226,19 @@
   /* ---------------- Welcome screen ---------------- */
   if (!B.hasDoc) {
     const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const canEdit = !!B.edit;
     const rec = (B.recent || []).map(r =>
       `<div class="r" data-path="${esc(r.path)}"><b>${esc(r.name)}</b><small>${esc(r.dir)}</small><button class="x" title="Retirer de la liste">×</button></div>`).join('');
     content.innerHTML = `<div class="welcome">
       <div class="logo"><svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h10M5 17h12"/></svg></div>
       <h1>MDReader</h1>
-      <p class="lead">Lecteur Markdown rapide — sommaire, maths, tableaux, recherche, export PDF/HTML.</p>
-      <button class="open">Ouvrir un fichier…<kbd>Ctrl+O</kbd></button>
+      <p class="lead">Lecteur Markdown rapide — sommaire, maths, tableaux, recherche, export PDF/HTML${canEdit ? ', et éditeur intégré' : ''}.</p>
+      <div class="acts"><button class="open">Ouvrir un fichier…<kbd>Ctrl+O</kbd></button>${canEdit ? '<button class="new">Nouveau document<kbd>Ctrl+N</kbd></button>' : ''}</div>
       ${rec ? `<h3>Récents</h3><div class="recent">${rec}</div>` : ''}
       <div class="drop">ou glisse un fichier .md n'importe où dans la fenêtre</div>
     </div>`;
     $('.welcome .open').addEventListener('click', () => send({ cmd: 'open' }));
+    if (canEdit) $('.welcome .new').addEventListener('click', () => send({ cmd: 'new' }));
     content.addEventListener('click', e => {
       const r = e.target.closest('.r'); if (!r) return;
       if (e.target.closest('.x')) { send({ cmd: 'forget', path: r.dataset.path }); r.remove(); return; }
@@ -244,19 +247,29 @@
   }
 
   /* ---------------- TOC & scroll spy ---------------- */
-  const links = $$('a', toc);
-  const levels = links.map(a => +a.className.slice(1, 2) || 1);
-  const sections = $$('.sec', content);
-  const secIndex = new Map(sections.map((s, i) => [s, i]));
-  const heads = links.map(a => document.getElementById(a.getAttribute('href').slice(1)));
-  const secHeads = sections.map(() => []);
-  heads.forEach((h, i) => {
-    if (!h) return;
-    const si = secIndex.get(h.closest('.sec'));
-    if (si !== undefined) secHeads[si].push(i);
-  });
-
+  let mio = null, IDX = null;
+  // Everything derived from the document's DOM. Computed again by initDoc() when the
+  // editor replaces the content (headsOverride: the headings of the edited text).
+  let links, levels, sections, secIndex, heads, secHeads, mathEls = [];
   let active = -1, shown = -1;
+  function initDoc(headsOverride) {
+    links = $$('a', toc);
+    levels = links.map(a => +a.className.slice(1, 2) || 1);
+    sections = $$('.sec', content);
+    secIndex = new Map(sections.map((s, i) => [s, i]));
+    heads = headsOverride || links.map(a => document.getElementById(a.getAttribute('href').slice(1)));
+    secHeads = sections.map(() => []);
+    heads.forEach((h, i) => {
+      if (!h || !h.closest) return;
+      const si = secIndex.get(h.closest('.sec'));
+      if (si !== undefined) secHeads[si].push(i);
+    });
+    active = shown = -1;
+    $('#secTitle').textContent = '';
+    IDX = null;
+    if (mio) { mathEls.forEach(el => mio.unobserve(el)); mathEls = $$('.math', content); mathEls.forEach(el => mio.observe(el)); }
+  }
+
   function markActive(i, force) {
     // Highlight the closest visible ancestor when the active heading is hidden by the depth filter.
     let j = i;
@@ -292,6 +305,7 @@
     return r.bottom < y ? sections.length - 1 : 0;
   }
   function spy() {
+    if (app.editing) return;
     const si = currentSection();
     if (si < 0) return;
     const y = barH() + 24;
@@ -350,6 +364,8 @@
   /* ---------------- Links inside the document ---------------- */
   content.addEventListener('click', e => {
     const a = e.target.closest('a[href]'); if (!a || !B.hasDoc) return;
+    // In the editor a click puts the caret in the link; Ctrl+click follows it.
+    if (app.editing) { e.preventDefault(); if (!(e.ctrlKey || e.metaKey)) return; }
     const href = a.getAttribute('href');
     if (href.startsWith('#')) {
       e.preventDefault();
@@ -364,7 +380,6 @@
   });
 
   /* ---------------- Math (rendered lazily, near the viewport) ---------------- */
-  const mathEls = $$('.math', content);
   const macros = {};
   function renderMath(el) {
     if (el.dataset.r || !window.katex) return;
@@ -376,10 +391,9 @@
       });
     } catch (err) { el.classList.add('math-err'); el.title = String(err && err.message || err); }
   }
-  const mio = new IntersectionObserver(es => {
+  mio = new IntersectionObserver(es => {
     for (const e of es) if (e.isIntersecting) { mio.unobserve(e.target); renderMath(e.target); }
   }, { rootMargin: '1500px 0px' });
-  mathEls.forEach(el => mio.observe(el));
   async function prepareForPrint() {
     mathEls.forEach(renderMath);
     try { await Promise.all([...document.fonts].filter(f => /KaTeX/.test(f.family)).map(f => f.load().catch(() => { }))); } catch (e) { }
@@ -388,14 +402,13 @@
 
   /* ---------------- Find (Ctrl+F) ---------------- */
   // Text index of the document (math excluded), built when idle so Ctrl+F is instant.
-  let IDX = null;
   function buildIndex() {
     if (IDX) return IDX;
     const nodes = [], starts = [], parts = [];
     let pos = 0, n;
     const w = document.createTreeWalker(content, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
       acceptNode: n => n.nodeType === 1
-        ? (n.classList.contains('math') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_SKIP)
+        ? (n.classList.contains('math') || n.classList.contains('nofind') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_SKIP)
         : NodeFilter.FILTER_ACCEPT,
     });
     while ((n = w.nextNode())) {
@@ -497,22 +510,29 @@
   $('#fClose').addEventListener('click', closeFind);
 
   /* ---------------- Export ---------------- */
+  // app.beforeExport: the editor shows the reader (with the current text) first.
+  const ready = async () => { if (app.beforeExport) await app.beforeExport(); await prepareForPrint(); };
   function doPdf() {
     if (!B.hasDoc) return;
     if (SA) return doPrint();
     toast('Préparation du PDF…', 60000);
-    setTimeout(async () => { await prepareForPrint(); send({ cmd: 'pdf' }); }, 20);
+    setTimeout(async () => { await ready(); send({ cmd: 'pdf' }); }, 20);
   }
   function doPrint() {
     if (!B.hasDoc) return;
     toast('Préparation de l’impression…');
-    setTimeout(async () => { await prepareForPrint(); hideToast(); window.print(); }, 20);
+    setTimeout(async () => { await ready(); hideToast(); window.print(); }, 20);
   }
-  function doHtml() { if (B.hasDoc && !SA) send({ cmd: 'exportHtml' }); }
+  async function doHtml() {
+    if (!B.hasDoc || SA) return;
+    if (app.beforeExport) await app.beforeExport();
+    send({ cmd: 'exportHtml' });
+  }
 
   /* ---------------- Keyboard ---------------- */
   addEventListener('keydown', e => {
     const k = e.key, c = e.ctrlKey || e.metaKey, lk = k.length === 1 ? k.toLowerCase() : k;
+    if (app.onKey && app.onKey(e, c, lk)) return; // the editor's own shortcuts
     if (c && !e.altKey) {
       const hit = (fn) => { e.preventDefault(); e.stopPropagation(); fn(); };
       if (lk === 'f') return hit(openFind);
@@ -525,7 +545,7 @@
       if (lk === 'b') return hit(() => setPref('side', !prefs.side));
       if (lk === 'd') return hit(toggleNight);
       if (lk === 'p') return hit(e.shiftKey ? doPrint : doPdf);
-      if (lk === 's') return hit(doHtml);
+      if (lk === 's' || (lk === 'h' && e.shiftKey)) return hit(doHtml);
       if (lk === 'r') return hit(() => send({ cmd: 'reload' }));
       if (lk === 'g') return hit(() => (findOpen ? findStep(e.shiftKey ? -1 : 1) : openFind()));
     }
@@ -554,12 +574,38 @@
     prog.style.transform = `scaleX(${max > 0 ? Math.min(1, scrollY / max) : 0})`;
     spy();
     if (!anchor) { const el = topElement(); if (el) lastTop = { el, top: el.getBoundingClientRect().top / innerHeight }; }
-    if (!SA) { clearTimeout(posT); posT = setTimeout(() => { const p = curPos(); if (p) send({ cmd: 'pos', pos: p }); }, 400); }
+    if (!SA && !app.editing) { clearTimeout(posT); posT = setTimeout(() => { const p = curPos(); if (p) send({ cmd: 'pos', pos: p }); }, 400); }
   }
   addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(onScroll); } }, { passive: true });
-  addEventListener('beforeunload', () => { if (!SA && B.hasDoc) { const p = curPos(); if (p) send({ cmd: 'pos', pos: p }); } });
+  addEventListener('beforeunload', () => { if (!SA && B.hasDoc && !app.editing) { const p = curPos(); if (p) send({ cmd: 'pos', pos: p }); } });
+
+  /* ---------------- Document statistics ---------------- */
+  // Characters, reading time (230 words/min) and LLM tokens (about 4 characters each).
+  const nf = n => Math.round(n).toLocaleString('fr-FR');
+  app.setStats = st => {
+    let box = $('#stats');
+    if (!box) { box = document.createElement('div'); box.id = 'stats'; $('#bar').insertBefore(box, $('#bSave') || $('#bZoom')); }
+    if (!st || !st.chars) { box.hidden = true; return; }
+    const min = st.words / 230;
+    box.hidden = false;
+    const m = Math.round(min), time = min < 1 ? '< 1 min' : m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0');
+    box.textContent = `${nf(st.chars)} caractères · ${time} de lecture · ${nf(st.chars / 4)} tokens`;
+    box.title = `${nf(st.words)} mots · lecture à 230 mots/min · tokens estimés à 1 pour 4 caractères`;
+  };
+  if (B.hasDoc) {
+    if (B.stats) app.setStats(B.stats);
+    else (window.requestIdleCallback || setTimeout)(() => { const t = content.textContent; app.setStats({ chars: t.length, words: (t.match(/\S+/g) || []).length }); }, { timeout: 2000 });
+  }
 
   /* ---------------- Start ---------------- */
+  initDoc();
+  // What the editor (editor.js, application only) needs from the reader.
+  app._ = {
+    $, $$, send, toast, hideToast, showPop, closePop, barH, prefs, savePrefs, scrollToEl, initDoc, renderMath, doHtml,
+    isPop: p => openPop === p,
+    heads: () => heads,
+    findReset() { IDX = null; if (findOpen) { clearTimeout(findT); findT = setTimeout(() => runFind($('#fq').value), 250); } },
+  };
   applyPrefs();
   showZoom(false);
   const pos = B.pos;

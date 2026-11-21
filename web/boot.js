@@ -135,7 +135,7 @@
       $('#docTitle').textContent = doc.name.replace(MD, '');
       document.title = (r.title || doc.name) + ' — MDReader';
       document.body.classList.remove('nodoc');
-      Object.assign(boot, { pos: positions[doc.id] || null, file: doc.name, headings: (r.toc.match(/<a /g) || []).length });
+      Object.assign(boot, { pos: positions[doc.id] || null, file: doc.name, headings: (r.toc.match(/<a /g) || []).length, stats: { chars: doc.text.length, words: (doc.text.match(/\S+/g) || []).length } });
     }
     window.__BOOT = boot;
     await loadScript('katex/katex.min.js');

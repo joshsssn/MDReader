@@ -4,7 +4,7 @@ fn main() {
         let mut res = winresource::WindowsResource::new();
         res.set_icon("assets/icon/MDR.ico")
             .set("ProductName", "MDReader")
-            .set("FileDescription", "MDReader (MDR) - lecteur Markdown")
+            .set("FileDescription", "MDReader (MDR) - lecteur et editeur Markdown")
             .set("LegalCopyright", "MIT License");
         res.compile().expect("failed to embed Windows resources");
     }

@@ -1,0 +1,61 @@
+name: Publier une version
+
+# Pousser un tag vX.Y.Z : compile MDReader.exe et l'extension VS Code, puis crée la release.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compiler MDReader.exe
+        run: cargo build --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exe
+          path: target/release/MDReader.exe
+          if-no-files-found: error
+
+  vsix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust + cible WebAssembly
+        run: rustup target add wasm32-unknown-unknown
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Construire l'extension
+        working-directory: vscode
+        run: |
+          npm install
+          npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: vscode/*.vsix
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [exe, vsix]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Créer la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/MDReader.exe dist/*.vsix \
+            --title "MDReader ${GITHUB_REF_NAME#v}" \
+            --notes-file docs/release-notes.md

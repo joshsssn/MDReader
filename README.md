@@ -2,7 +2,7 @@
 
 <h1 align="center">MDReader (MDR)</h1>
 
-<p align="center">Lecteur Markdown portable et ultra-rapide pour Windows — un seul <code>.exe</code> de 2 Mo, sans installation.</p>
+<p align="center">Lecteur Markdown portable et ultra-rapide pour Windows, avec éditeur intégré — un seul <code>.exe</code> de 3 Mo, sans installation.</p>
 
 <p align="center"><a href="https://github.com/joshsssn/MDReader/releases/latest"><b>⬇ Télécharger MDReader.exe</b></a> &nbsp;·&nbsp; <a href="#extension-vs-code"><b>🧩 Extension VS Code</b></a> &nbsp;·&nbsp; <a href="https://joshsssn.github.io/MDReader/"><b>📱 Version web / mobile</b></a></p>
 
@@ -31,9 +31,25 @@ Le Markdown est converti en Rust ([pulldown-cmark](https://github.com/pulldown-c
 - **Plein écran** F11 (barre masquée, réapparaît en haut de l'écran)
 - **Export PDF** direct et **export HTML autonome** (un seul fichier, avec sommaire, recherche et thèmes)
 - Reprise de la position de lecture, fichiers récents, rechargement automatique quand le fichier change
-- Lecture seule : rien n'est jamais modifié
+- **Statistiques** du document dans la barre : nombre de caractères, temps de lecture (230 mots/min) et estimation du nombre de tokens pour un LLM (environ 1 token pour 4 caractères)
+- **Éditeur intégré** pour les `.md` et les `.txt` (application Windows) : voir ci-dessous. En lecture, rien n'est jamais modifié
 
 ![Thème Nuit et panneau Apparence](docs/screenshot-nuit.png)
+
+## Éditeur
+
+Un interrupteur **Lecture / Édition** dans la barre (`Ctrl+E`) ouvre le document dans l'éditeur ; `Ctrl+N` crée un nouveau document.
+
+- **Markdown, vue « Rendu »** : édition directe du document mis en forme, avec une barre d'outils (styles de titre, gras, italique, souligné, barré, code, lien, image, listes à puces, numérotées et à cocher, citation, encadrés, bloc de code, formule, tableau, séparateur, note de bas de page).
+- **La syntaxe Markdown est reconnue à la frappe** : `### ` devient un titre, `- ` ou `1. ` une liste, `[ ] ` une case à cocher, `> ` une citation, ```` ``` ```` puis Entrée un bloc de code, `$$` puis Entrée une formule, `---` un séparateur, `| a | b |` un tableau ; `**gras**`, `*italique*`, `~~barré~~`, `` `code` ``, `$x^2$` et `[texte](lien)` sont mis en forme dès le caractère fermant.
+- **Éditeur d'équations** ([MathLive](https://cortexjs.io/mathlive/)) : un clic sur une formule (ou le bouton ∑) l'ouvre dans un champ où elle se modifie directement, comme dans Word : on clique dans une case de matrice, un numérateur ou un exposant et on tape. Des palettes par onglets insèrent fractions, racines, sommes, intégrales, lettres grecques, opérateurs, flèches, matrices, accents et fonctions ; `Tab` passe au champ suivant, un clic droit ajoute ou supprime des lignes et colonnes de matrice. Le LaTeX reste visible et modifiable dessous.
+- **Markdown, vue « Source »** (second interrupteur **Rendu / Source**, `Ctrl+Maj+E`) : le texte brut, pour retoucher la structure. La barre d'outils y insère la syntaxe correspondante.
+- **Fichiers `.txt`** : éditeur de texte brut, sans mise en forme.
+- **Enregistrement** explicite (`Ctrl+S`, bouton de la barre), **Enregistrer sous** (`Ctrl+Maj+S` ou la flèche à côté du bouton : les modifications vont dans un autre fichier, l'original reste intact), annuler / rétablir (`Ctrl+Z` / `Ctrl+Y`). Un point signale les modifications non enregistrées, et une confirmation est demandée avant de fermer ou de changer de fichier.
+- **Fidélité** : seuls les blocs réellement modifiés sont réécrits. Le reste du fichier est conservé à l'octet près (mise en page du Markdown, fins de ligne, front matter, HTML).
+- Copier depuis l'éditeur donne du Markdown ; coller du Markdown l'insère mis en forme.
+
+L'éditeur reste fluide sur de très gros fichiers (testé sur 1,6 million de caractères) : comme le lecteur, il ne met en page que la partie visible.
 
 ## Utilisation
 
@@ -60,15 +76,16 @@ Le même moteur de rendu (Rust, compilé en WebAssembly) et la même interface s
 | Installation | aucune, un `.exe` portable | fichier `.vsix` |
 | Plateformes | Windows 10 / 11 | partout où VS Code tourne |
 | Export PDF / HTML, plein écran, zoom loupe | ✅ | — (VS Code a ses propres zoom et plein écran) |
-| Sommaire, recherche, maths, thèmes, rechargement auto | ✅ | ✅ |
+| Éditeur intégré | ✅ | — (VS Code est déjà un éditeur) |
+| Sommaire, recherche, maths, thèmes, statistiques, rechargement auto | ✅ | ✅ |
 
 Installer l'extension :
 
-1. Télécharger `mdreader-1.0.0.vsix` depuis les [Releases](https://github.com/joshsssn/MDReader/releases/latest).
+1. Télécharger `mdreader-1.1.0.vsix` depuis les [Releases](https://github.com/joshsssn/MDReader/releases/latest).
 2. Dans VS Code : `Ctrl+Maj+P` → **Extensions: Install from VSIX…**, puis sélectionner le fichier. Ou en ligne de commande :
 
 ```
-code --install-extension mdreader-1.0.0.vsix
+code --install-extension mdreader-1.1.0.vsix
 ```
 
 3. Clic droit sur un `.md` → **Ouvrir avec… → MDReader**.
@@ -103,7 +120,7 @@ Limites de la version web :
 
 - pas de rechargement automatique lorsque le fichier change ;
 - pas d'images locales (les images en `https://` s'affichent) ;
-- pas d'export HTML ;
+- pas d'export HTML ni d'éditeur ;
 - « Exporter en PDF » ouvre l'impression du navigateur (iPhone : Partager → Enregistrer dans Fichiers).
 
 Sur ordinateur, l'application installée via Chrome ou Edge peut être associée aux fichiers `.md`.
@@ -131,7 +148,12 @@ Le déploiement sur GitHub Pages est automatique à chaque push (`.github/workfl
 | Ctrl+D | Mode nuit |
 | F11 / Échap | Plein écran |
 | Ctrl+P · Ctrl+Maj+P | Export PDF · Imprimer |
-| Ctrl+S | Export HTML |
+| Ctrl+Maj+H | Export HTML (aussi Ctrl+S en lecture, sans modification en attente) |
+| Ctrl+E · Ctrl+Maj+E | Lecture / Édition · Rendu / Source |
+| Ctrl+S · Ctrl+Maj+S | Enregistrer · Enregistrer sous |
+| Ctrl+N | Nouveau document |
+| Ctrl+Z · Ctrl+Y | Annuler · Rétablir |
+| Ctrl+B · Ctrl+I · Ctrl+U · Ctrl+Maj+X · Ctrl+K | Gras · Italique · Souligné · Barré · Lien (en édition ; Ctrl+B affiche le sommaire en lecture) |
 | F5 | Recharger |
 | F1 | Aide |
 
@@ -143,8 +165,10 @@ cargo build --release
 
 L'exe est produit dans `target/release/MDReader.exe` (CRT lié statiquement, icône intégrée via `build.rs`).
 
-Structure : [`src/render.rs`](src/render.rs) (Markdown → HTML, sommaire), [`src/main.rs`](src/main.rs) (fenêtre, fichiers, exports), [`assets/`](assets) (interface : HTML, CSS, JS, KaTeX), [`vscode/`](vscode) (extension VS Code) et [`web/`](web) (PWA), qui réutilisent `render.rs` et `assets/`.
+Publier une version : pousser un tag `vX.Y.Z` ; le workflow [`release.yml`](.github/workflows/release.yml) compile `MDReader.exe` et l'extension `.vsix`, puis crée la release avec les deux fichiers.
+
+Structure : [`src/render.rs`](src/render.rs) (Markdown → HTML, sommaire), [`src/main.rs`](src/main.rs) (fenêtre, fichiers, exports), [`assets/`](assets) (interface : HTML, CSS, JS, KaTeX ; l'éditeur est dans `editor.js` et `editor.css`, chargés uniquement par l'application), [`vscode/`](vscode) (extension VS Code) et [`web/`](web) (PWA), qui réutilisent `render.rs` et `assets/`.
 
 ## Licence
 
-[MIT](LICENSE) © 2026 Josh Soussan. KaTeX est distribué sous licence MIT.
+[MIT](LICENSE) © 2026 Josh Soussan. KaTeX et MathLive sont distribués sous licence MIT.
