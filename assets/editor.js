@@ -1253,7 +1253,7 @@
   if (MD) bar.insertBefore(swView, anchorBtn);
   bar.insertBefore(swMode, anchorBtn);
   bSave.addEventListener('click', () => save(false));
-  bSaveAs.addEventListener('click', () => (panel === pSave ? closePanel() : openPanel(pSave, bSave)));
+  bSaveAs.addEventListener('click', () => { if (panel === pSave) return closePanel(); openPanel(pSave, bSave); bSaveAs.classList.add('on'); });
   swMode.addEventListener('click', () => setMode(S.mode === 'edit' ? 'read' : 'edit'));
   swView.addEventListener('click', () => setView(S.view === 'rich' ? 'raw' : 'rich'));
   for (const s of [swMode, swView]) s.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); s.click(); } });
@@ -1306,6 +1306,7 @@
   }
   function closePanel(cancel) {
     if (!panel) return;
+    bSaveAs.classList.remove('on');
     const p = panel, f = panelClose; panel = panelClose = null;
     p.classList.remove('show');
     if (f) f(!!cancel);

@@ -21,8 +21,11 @@
 #swMode:not(.b) button:first-of-type { color: var(--bg); }
 .sw2:focus-visible, .sw2 button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 body.nodoc .sw2, body.nodoc #bSave { display: none; }
-#bSaveAs { width: 18px; margin-left: -6px; }
-#bSaveAs svg { width: 13px; height: 13px; }
+/* Petite flèche collée au bouton Enregistrer : jamais de fond, seule la couleur change. */
+#bSaveAs, #bSaveAs:hover, #bSaveAs:active, #bSaveAs:focus { background: none; outline: none; }
+#bSaveAs { width: 14px; height: 34px; margin: 0 4px 0 -7px; padding: 0; color: var(--muted); }
+#bSaveAs:hover, #bSaveAs.on { color: var(--accent); }
+#bSaveAs svg { width: 12px; height: 12px; stroke-width: 2.2; }
 #pSave small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
 body:not(.editing) .edui { display: none !important; }
 
