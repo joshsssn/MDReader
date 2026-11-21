@@ -8,8 +8,9 @@ if (!fs.existsSync(wasm)) throw new Error("WASM introuvable : compile d'abord vs
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(path.join(out, 'katex/fonts'), { recursive: true });
 fs.mkdirSync(path.join(out, 'icons'), { recursive: true });
+fs.mkdirSync(path.join(out, 'mathlive'), { recursive: true });
 const cp = (from, to) => fs.copyFileSync(from, path.join(out, to));
-for (const f of ['app.css', 'app.js', 'katex/katex.min.css', 'katex/katex.min.js']) cp(path.join(assets, f), f);
+for (const f of ['app.css', 'app.js', 'editor.css', 'editor.js', 'mathlive/mathlive.min.js', 'katex/katex.min.css', 'katex/katex.min.js']) cp(path.join(assets, f), f);
 for (const f of fs.readdirSync(path.join(assets, 'katex/fonts'))) cp(path.join(assets, 'katex/fonts', f), 'katex/fonts/' + f);
 for (const f of fs.readdirSync(path.join(__dirname, 'icons'))) cp(path.join(__dirname, 'icons', f), 'icons/' + f);
 for (const f of ['boot.js', 'pwa.css', 'manifest.webmanifest']) cp(path.join(__dirname, f), f);
@@ -29,6 +30,7 @@ const head = `<meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="apple-mobile-web-app-title" content="MDReader">
 <link rel="stylesheet" href="katex/katex.min.css">
 <link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="editor.css">
 <link rel="stylesheet" href="pwa.css">`;
 const html = fs.readFileSync(path.join(assets, 'shell.html'), 'utf8')
   .replace('<meta name="viewport" content="width=device-width, initial-scale=1">',

@@ -215,10 +215,19 @@ body.fs.reveal.tools #tools { transform: none; opacity: 1; pointer-events: auto;
 }
 #mField:focus-within { border-color: var(--accent); }
 #mField::part(virtual-keyboard-toggle), #mField::part(menu-toggle) { display: none; }
-#pMath.ml #mTex { min-height: 0; height: 36px; font-size: 12px; color: var(--fg2); }
+#pMath.ml #mTex { min-height: 0; height: 36px; font-size: 12px; color: var(--fg2); white-space: pre; overflow: hidden; }
 /* Menu contextuel de MathLive (clic droit : lignes et colonnes de matrice…) aux couleurs du thème. */
 :root {
   --ui-menu-bg: var(--bg2); --ui-menu-text: var(--fg); --ui-menu-bg-hover: var(--bg3); --ui-menu-text-hover: var(--fg);
   --ui-menu-bg-active: var(--accent); --ui-menu-text-active: var(--bg); --ui-menu-bg-active-muted: var(--bg3); --ui-menu-text-active-muted: var(--fg);
   --ui-menu-divider: var(--border); --ui-menu-z-index: 60;
+}
+/* Téléphone : en édition, la barre ne garde que le sommaire, l'enregistrement et les deux interrupteurs. */
+#bSaveAs { min-width: 20px !important; }
+@media (max-width: 560px) {
+  body.editing #bFind, body.editing #bLook, body.editing #bOpen, body.editing #crumb { display: none; }
+  body.editing .sp { flex: 1; }
+  .sw2 { font-size: 11.5px; height: 28px; }
+  .sw2 button { padding: 0 7px; }
+  #pMath .efield { width: calc(100vw - 44px); }
 }

@@ -1286,7 +1286,8 @@
     .map(t => (t ? `<button class="tb" data-a="${t[0]}" title="${t[2]}">${svg(t[1])}</button>` : '<span class="tsep"></span>')).join(''));
   const pSave = el('div', { class: 'pop menu epop', id: 'pSave' }, '<button data-v="save"><span>Enregistrer</span><kbd>Ctrl+S</kbd></button><button data-v="as"><span>Enregistrer sous…<small>le fichier d’origine reste intact</small></span><kbd>Ctrl+Maj+S</kbd></button>');
   body.append(pStyle, pCall, pGrid, pLink, pMath, pSave, tblBar);
-  pSave.addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (!b) return; closePanel(); save(b.dataset.v === 'as'); });
+  if (B.edit.newInMenu) pSave.insertAdjacentHTML('beforeend', '<button data-v="new"><span>Nouveau document</span></button>');
+  pSave.addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (!b) return; closePanel(); if (b.dataset.v === 'new') send({ cmd: 'new' }); else save(b.dataset.v === 'as'); });
 
   // ---- panels ----
   // `anchor`: anything with getBoundingClientRect (a button, an element of the text, a Range).
@@ -1510,12 +1511,14 @@
     if (mlLoad) return mlLoad;
     mlLoad = new Promise(res => {
       const sc = document.createElement('script');
-      sc.src = '/__mdr/mathlive/mathlive.min.js';
+      // The host says where its files are (application: /__mdr/…; web and VS Code: their own URLs).
+      sc.src = B.edit.mathlive || '/__mdr/mathlive/mathlive.min.js';
+      if (B.edit.nonce) sc.nonce = B.edit.nonce;
       sc.onerror = () => res(false);
       sc.onload = () => {
         try {
           const ME = window.MathfieldElement;
-          ME.fontsDirectory = '/__mdr/katex/fonts';
+          ME.fontsDirectory = new URL(B.edit.fonts || '/__mdr/katex/fonts', document.baseURI).href;
           ME.soundsDirectory = null;
           try { ME.locale = 'fr'; } catch (e) { }
           const f = new ME();
@@ -1738,6 +1741,7 @@
 
   /* ---------------- Saving ---------------- */
   function save(as) {
+    if (B.edit.hostSave) { closePanel(); return send({ cmd: as ? 'saveAs' : 'save' }); }
     if (S.text === null && !as) return toast('Aucune modification à enregistrer', 1500);
     if (S.text === null) return;
     if (!S.dirty && !as && !B.edit.untitled) return toast('Aucune modification à enregistrer', 1500);
@@ -1746,12 +1750,14 @@
     if (MD && text && !text.endsWith('\n')) text += '\n';
     send({ cmd: 'save', text, as: !!as });
   }
+  // Hosts that drive saving themselves (VS Code) ask for the text.
+  app.getText = () => { if (S.text === null) return null; let t = currentText(); if (MD && t && !t.endsWith('\n')) t += '\n'; return t; };
   app.saveNow = () => { if (S.text === null) { S.text = ''; } const t = currentText(); send({ cmd: 'save', text: t, as: false }); };
   app.onSaved = d => {
     setDirty(false);
     B.edit.untitled = false; B.file = d.name;
     $('#docTitle').textContent = d.name.replace(/\.md$/i, '');
-    toast('Enregistré', 1400);
+    toast(d.msg || 'Enregistré', 1400);
   };
   app.saveFailed = msg => { if (msg) toast(msg, 4500); };
   app.changedOnDisk = () => toast('Le fichier a été modifié par un autre programme', 9000, 'Recharger', () => send({ cmd: 'reload' }));
@@ -1766,6 +1772,7 @@
     if (lk === 'n') return hit(() => send({ cmd: 'new' }));
     if (lk === 'e') return hit(() => (e.shiftKey ? setView(S.view === 'rich' ? 'raw' : 'rich') : setMode(S.mode === 'edit' ? 'read' : 'edit')));
     if (lk === 's') {
+      if (B.edit.hostSave) return hit(() => send({ cmd: e.shiftKey ? 'saveAs' : 'save' }));      // VS Code saves and asks for the text
       if (e.shiftKey) return hit(() => { if (S.text === null) ask('source').then(r => { S.text = S.readerText = r.text; save(true); }); else save(true); });
       if (S.mode === 'edit' || S.dirty || B.edit.untitled) return hit(() => save(false));
       return false;                                   // reader, nothing to save: HTML export as before
@@ -1797,6 +1804,10 @@
     for (const td of $$('td:first-child', keys)) if (td.textContent === 'Ctrl+B') td.nextElementSibling.textContent = 'Afficher / masquer le sommaire (lecture)';
   }
   const hk = $('#pExport [data-act="html"] kbd'); if (hk) hk.textContent = 'Ctrl+Maj+H';
+  if (B.edit.newInMenu) {       // browsers keep Ctrl+N for themselves
+    $('#pExport').insertAdjacentHTML('afterbegin', '<button data-act="newdoc"><span>Nouveau document</span></button>');
+    $('#pExport').addEventListener('click', e => { if (e.target.closest('[data-act="newdoc"]')) { e.stopPropagation(); closePop(); send({ cmd: 'new' }); } }, true);
+  }
   $('#pExport').insertAdjacentHTML('afterbegin', '<button data-act="saveas"><span>Enregistrer sous…</span><kbd>Ctrl+Maj+S</kbd></button>');
   $('#pExport').addEventListener('click', e => { if (e.target.closest('[data-act="saveas"]')) { e.stopPropagation(); closePop(); if (S.text === null) ask('source').then(r => { S.text = S.readerText = r.text; save(true); }); else save(true); } }, true);
 

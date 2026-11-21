@@ -1,7 +1,7 @@
 {
   "name": "mdreader",
   "displayName": "MDReader",
-  "description": "Lecteur Markdown rapide (moteur Rust/WASM) : sommaire, maths KaTeX, 7 thèmes, recherche instantanée.",
+  "description": "Lecteur et éditeur Markdown rapide (moteur Rust/WASM) : sommaire, maths KaTeX, 7 thèmes, recherche instantanée, édition WYSIWYG.",
   "version": "1.1.0",
   "publisher": "joshsssn",
   "license": "MIT",
