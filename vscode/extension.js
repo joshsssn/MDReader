@@ -34,6 +34,7 @@ function render(ctx, text) {
   w.dealloc(outPtr, outLen);
   w.dealloc(inPtr, src.length);
   w.dealloc(lenPtr, 4);
+  res.stats = { chars: text.length, words: (text.match(/\S+/g) || []).length };
   return res;
 }
 
@@ -54,7 +55,7 @@ function buildPage(ctx, webview, uri, r, prefs, pos) {
 
   const boot = JSON.stringify({
     standalone: false, prefs, zoom: 100, pos: pos ?? null, recent: [], file,
-    hasDoc: true, headings: (r.toc.match(/<a /g) || []).length,
+    hasDoc: true, headings: (r.toc.match(/<a /g) || []).length, stats: r.stats,
   }).replace(/<\//g, '<\\/');
 
   const csp = [

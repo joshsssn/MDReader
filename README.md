@@ -77,15 +77,15 @@ Le même moteur de rendu (Rust, compilé en WebAssembly) et la même interface s
 | Plateformes | Windows 10 / 11 | partout où VS Code tourne |
 | Export PDF / HTML, plein écran, zoom loupe | ✅ | — (VS Code a ses propres zoom et plein écran) |
 | Éditeur intégré | ✅ | — (VS Code est déjà un éditeur) |
-| Sommaire, recherche, maths, thèmes, rechargement auto | ✅ | ✅ |
+| Sommaire, recherche, maths, thèmes, statistiques, rechargement auto | ✅ | ✅ |
 
 Installer l'extension :
 
-1. Télécharger `mdreader-1.0.0.vsix` depuis les [Releases](https://github.com/joshsssn/MDReader/releases/latest).
+1. Télécharger `mdreader-1.1.0.vsix` depuis les [Releases](https://github.com/joshsssn/MDReader/releases/latest).
 2. Dans VS Code : `Ctrl+Maj+P` → **Extensions: Install from VSIX…**, puis sélectionner le fichier. Ou en ligne de commande :
 
 ```
-code --install-extension mdreader-1.0.0.vsix
+code --install-extension mdreader-1.1.0.vsix
 ```
 
 3. Clic droit sur un `.md` → **Ouvrir avec… → MDReader**.
@@ -164,6 +164,8 @@ cargo build --release
 ```
 
 L'exe est produit dans `target/release/MDReader.exe` (CRT lié statiquement, icône intégrée via `build.rs`).
+
+Publier une version : pousser un tag `vX.Y.Z` ; le workflow [`release.yml`](.github/workflows/release.yml) compile `MDReader.exe` et l'extension `.vsix`, puis crée la release avec les deux fichiers.
 
 Structure : [`src/render.rs`](src/render.rs) (Markdown → HTML, sommaire), [`src/main.rs`](src/main.rs) (fenêtre, fichiers, exports), [`assets/`](assets) (interface : HTML, CSS, JS, KaTeX ; l'éditeur est dans `editor.js` et `editor.css`, chargés uniquement par l'application), [`vscode/`](vscode) (extension VS Code) et [`web/`](web) (PWA), qui réutilisent `render.rs` et `assets/`.
 
