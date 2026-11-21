@@ -165,7 +165,7 @@ cargo build --release
 
 L'exe est produit dans `target/release/MDReader.exe` (CRT lié statiquement, icône intégrée via `build.rs`).
 
-Publier une version : pousser un tag `vX.Y.Z` ; le workflow [`release.yml`](.github/workflows/release.yml) compile `MDReader.exe` et l'extension `.vsix`, puis crée la release avec les deux fichiers.
+Publier une version : pousser un tag `vX.Y.Z` (ou lancer le workflow à la main en indiquant le tag) ; le workflow [`release.yml`](.github/workflows/release.yml) compile `MDReader.exe` et l'extension `.vsix`, puis crée la release avec les deux fichiers.
 
 Structure : [`src/render.rs`](src/render.rs) (Markdown → HTML, sommaire), [`src/main.rs`](src/main.rs) (fenêtre, fichiers, exports), [`assets/`](assets) (interface : HTML, CSS, JS, KaTeX ; l'éditeur est dans `editor.js` et `editor.css`, chargés uniquement par l'application), [`vscode/`](vscode) (extension VS Code) et [`web/`](web) (PWA), qui réutilisent `render.rs` et `assets/`.
 
