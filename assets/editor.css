@@ -17,10 +17,13 @@
   color: var(--muted); cursor: pointer; transition: color .15s; white-space: nowrap;
 }
 .sw2:not(.b) button:first-of-type, .sw2.b button:last-of-type { color: var(--fg); }
-#swMode.b i { background: var(--accent); }
-#swMode.b button:last-of-type { color: var(--bg); }
+#swMode:not(.b) i { background: var(--accent); }
+#swMode:not(.b) button:first-of-type { color: var(--bg); }
 .sw2:focus-visible, .sw2 button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 body.nodoc .sw2, body.nodoc #bSave { display: none; }
+#bSaveAs { width: 18px; margin-left: -6px; }
+#bSaveAs svg { width: 13px; height: 13px; }
+#pSave small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
 body:not(.editing) .edui { display: none !important; }
 
 #bSave { position: relative; }
@@ -198,4 +201,22 @@ body.fs.reveal.tools #tools { transform: none; opacity: 1; pointer-events: auto;
 @media (max-width: 640px) {
   body.editing #bHelp, body.editing #bNight { display: none; }
   #tools::before, #tools::after { content: none; }
+}
+
+/* Champ MathLive : la formule s'édite directement (cases de matrice, fractions…). */
+#mField {
+  display: block; width: 100%; min-height: 76px; max-height: 240px; overflow: auto; font-size: 22px; padding: 10px 12px; outline: none;
+  background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px;
+  --caret-color: var(--accent); --selection-background-color: var(--sel); --selection-color: var(--fg);
+  --contains-highlight-background-color: color-mix(in srgb, var(--accent) 9%, transparent);
+  --placeholder-color: var(--accent); --primary: var(--accent); --latex-color: var(--accent);
+}
+#mField:focus-within { border-color: var(--accent); }
+#mField::part(virtual-keyboard-toggle), #mField::part(menu-toggle) { display: none; }
+#pMath.ml #mTex { min-height: 0; height: 36px; font-size: 12px; color: var(--fg2); }
+/* Menu contextuel de MathLive (clic droit : lignes et colonnes de matrice…) aux couleurs du thème. */
+:root {
+  --ui-menu-bg: var(--bg2); --ui-menu-text: var(--fg); --ui-menu-bg-hover: var(--bg3); --ui-menu-text-hover: var(--fg);
+  --ui-menu-bg-active: var(--accent); --ui-menu-text-active: var(--bg); --ui-menu-bg-active-muted: var(--bg3); --ui-menu-text-active-muted: var(--fg);
+  --ui-menu-divider: var(--border); --ui-menu-z-index: 60;
 }

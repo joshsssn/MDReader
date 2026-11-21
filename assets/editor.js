@@ -658,10 +658,11 @@
   function afterEdit() {
     S.stale = true;
     if (!S.dirty) setDirty(true);
-    clearTimeout(tocT); tocT = setTimeout(updateToc, 400);
+    clearTimeout(tocT); tocT = setTimeout(() => { updateToc(); stats(); }, 400);
     app._.findReset();
     toolsSoon();
   }
+  const stats = () => { if (app.setStats && S.text !== null) { const t = currentText(); app.setStats({ chars: t.length, words: (t.match(/\S+/g) || []).length }); } };
   function setDirty(v) {
     S.dirty = v;
     body.classList.toggle('dirty', v);
@@ -1244,11 +1245,15 @@
   const mkSwitch = (id, title, a, b) => el('div', { class: 'sw2', id, title, role: 'switch', tabindex: '0' }, `<i></i><button tabindex="-1" data-v="${a[0]}">${a[1]}</button><button tabindex="-1" data-v="${b[0]}">${b[1]}</button>`);
   const swView = mkSwitch('swView', 'Rendu mis en forme ou source Markdown (Ctrl+Maj+E)', ['rich', 'Rendu'], ['raw', 'Source']);
   swView.classList.add('edui');
-  const swMode = mkSwitch('swMode', 'Lecture ou édition (Ctrl+E)', ['read', 'Lecture'], ['edit', 'Édition']);
+  const swMode = mkSwitch('swMode', 'Édition ou lecture (Ctrl+E)', ['edit', 'Édition'], ['read', 'Lecture']);
+  swMode.classList.add('b');
+  const bSaveAs = el('button', { class: 'ib edui', id: 'bSaveAs', title: 'Enregistrer sous… : écrire les modifications dans un autre fichier (Ctrl+Maj+S)', 'data-t': 'savemenu' }, svg('chev'));
   bar.insertBefore(bSave, anchorBtn);
+  bar.insertBefore(bSaveAs, anchorBtn);
   if (MD) bar.insertBefore(swView, anchorBtn);
   bar.insertBefore(swMode, anchorBtn);
   bSave.addEventListener('click', () => save(false));
+  bSaveAs.addEventListener('click', () => (panel === pSave ? closePanel() : openPanel(pSave, bSave)));
   swMode.addEventListener('click', () => setMode(S.mode === 'edit' ? 'read' : 'edit'));
   swView.addEventListener('click', () => setView(S.view === 'rich' ? 'raw' : 'rich'));
   for (const s of [swMode, swView]) s.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); s.click(); } });
@@ -1276,10 +1281,12 @@
   const pCall = el('div', { class: 'pop menu epop', id: 'pCall' }, CALLS.map(([v, n, c]) => `<button data-v="${v}"><i style="background:${c}"></i><span>${n}</span></button>`).join(''));
   const pGrid = el('div', { class: 'pop epop', id: 'pGrid' }, '<div class="grid">' + '<i></i>'.repeat(48) + '</div><div class="lbl">Tableau</div>');
   const pLink = el('div', { class: 'pop epop', id: 'pLink' }, '<div class="efield"><input id="lText" placeholder="Texte du lien" spellcheck="false"><input id="lUrl" placeholder="https://… ou fichier.md" spellcheck="false"><div class="row"><button class="ebtn" id="lDel">Retirer le lien</button><button class="ebtn pri" id="lOk">Appliquer</button></div></div>');
-  const pMath = el('div', { class: 'pop epop', id: 'pMath' }, '<div class="efield"><div id="mPrev"></div><textarea id="mTex" rows="2" placeholder="LaTeX, par ex. \\frac{a}{b} — ou clique sur les symboles" spellcheck="false"></textarea><div id="mTabs"></div><div id="mGrid"></div><div class="row"><span class="hint">Entrée : valider · Tab : champ suivant · Maj+Entrée : ligne</span><button class="ebtn pri" id="mOk">OK</button></div></div>');
+  const pMath = el('div', { class: 'pop epop', id: 'pMath' }, '<div class="efield"><div id="mPrev"></div><textarea id="mTex" rows="2" placeholder="LaTeX (facultatif) — la formule se modifie directement au-dessus" spellcheck="false"></textarea><div id="mTabs"></div><div id="mGrid"></div><div class="row"><span class="hint">Clique dans la formule pour la modifier · Tab : champ suivant · Entrée : valider</span><button class="ebtn pri" id="mOk">OK</button></div></div>');
   const tblBar = el('div', { id: 'tblBar' }, [['row', 'rowAdd', 'Ajouter une ligne dessous'], ['col', 'colAdd', 'Ajouter une colonne à droite'], ['delrow', 'rowDel', 'Supprimer la ligne'], ['delcol', 'colDel', 'Supprimer la colonne'], 0, ['left', 'alL', 'Aligner à gauche'], ['center', 'alC', 'Centrer'], ['right', 'alR', 'Aligner à droite'], 0, ['del', 'trash', 'Supprimer le tableau']]
     .map(t => (t ? `<button class="tb" data-a="${t[0]}" title="${t[2]}">${svg(t[1])}</button>` : '<span class="tsep"></span>')).join(''));
-  body.append(pStyle, pCall, pGrid, pLink, pMath, tblBar);
+  const pSave = el('div', { class: 'pop menu epop', id: 'pSave' }, '<button data-v="save"><span>Enregistrer</span><kbd>Ctrl+S</kbd></button><button data-v="as"><span>Enregistrer sous…<small>le fichier d’origine reste intact</small></span><kbd>Ctrl+Maj+S</kbd></button>');
+  body.append(pStyle, pCall, pGrid, pLink, pMath, pSave, tblBar);
+  pSave.addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (!b) return; closePanel(); save(b.dataset.v === 'as'); });
 
   // ---- panels ----
   // `anchor`: anything with getBoundingClientRect (a button, an element of the text, a Range).
@@ -1303,7 +1310,8 @@
     p.classList.remove('show');
     if (f) f(!!cancel);
   }
-  document.addEventListener('mousedown', e => { if (panel && !panel.contains(e.target) && !e.target.closest('[data-t]')) closePanel(); }, true);
+  const inMathUi = e => e.composedPath().some(n => n.nodeType === 1 && (n.tagName === 'MATH-FIELD' || /(^|\s)(ui-menu|ML__)/.test(n.className && n.className.baseVal == null ? n.className : '')));
+  document.addEventListener('mousedown', e => { if (panel && !panel.contains(e.target) && !e.target.closest('[data-t]') && !inMathUi(e)) closePanel(); }, true);
   const keepRange = () => { savedSel = S.view === 'rich' ? richSel() : plainSel(raw); };
   const backToText = () => { if (S.view === 'rich') { if (savedSel) setRichSel(savedSel); else ed.focus(); } else { raw.focus(); if (savedSel) setPlainSel(raw, savedSel[0], savedSel[1]); } };
 
@@ -1461,10 +1469,12 @@
     ta.value = texOf(m); ta.rows = m.classList.contains('math-display') ? 3 : 2;
     previewMath();
     showPal(mGrid.dataset.p && mGrid.dataset.p !== 'recent' ? mGrid.dataset.p : prefs.mathTab || 'struct');
+    if (mf) setField(ta.value);
     openPanel(pMath, m, cancel => {
       const node = mathFor; mathFor = null;
       if (!node || !node.isConnected) return;
       node.classList.remove('sel');
+      if (mf && fieldDirty && !cancel) ta.value = fromField();
       const tex = ta.value.trim(), old = texOf(node);
       const holder = node.parentNode.classList.contains('mathp') ? node.parentNode : node;
       if ((cancel && mathNew && !old) || !tex) { cmd(() => { const nx = holder.nextSibling; holder.remove(); if (nx && nx.isConnected) { if (nx.nodeType === 3) setCaret(nx, Math.min(1, nx.data.length)); else caretIn(nx, false); } }); return; }
@@ -1474,16 +1484,69 @@
       else if (holder !== node && holder.nextElementSibling) caretIn(holder.nextElementSibling, false);
       else ed.focus({ preventScroll: true });
     });
-    ta.focus(); ta.select();
+    if (mf) focusField(); else { ta.focus(); ta.select(); loadMathLive().then(ok => { if (ok && mathFor === m) { setField(ta.value); placePanel(); focusField(); } }); }
   }
+
+  // ---- MathLive: the formula itself is edited in place (click a matrix cell and type) ----
+  let mf = null, mlLoad = null;
+  // Programmatic changes of the field must not be taken for typing.
+  // MathLive reports typing a little late: fieldDirty says the field is ahead of the LaTeX box.
+  let fieldBusy = false, fieldDirty = false;
+  const setField = tex => { fieldBusy = true; try { mf.setValue(tex); } finally { fieldBusy = false; fieldDirty = false; } };
+  // Leave the text first: otherwise keys typed right away would still land in the document.
+  const focusField = () => {
+    if (document.activeElement && document.activeElement !== mf) document.activeElement.blur();
+    getSelection().removeAllRanges();
+    const go = () => { if (!mathFor) return; mf.focus(); try { mf.executeCommand('moveToMathfieldEnd'); } catch (e) { } };
+    go(); requestAnimationFrame(() => { if (!mf.hasFocus || !mf.hasFocus()) go(); });
+  };
+  // What MathLive writes, as LaTeX that KaTeX (the reader) understands.
+  const fromField = () => {
+    let t = ''; try { t = mf.getValue('latex-expanded'); } catch (e) { t = mf.value; }
+    return t.replace(/\\placeholder(\[[^\]]*\])?\{[^}]*\}/g, '').replace(/\\mleft/g, '\\left').replace(/\\mright/g, '\\right').trim();
+  };
+  function loadMathLive() {
+    if (mlLoad) return mlLoad;
+    mlLoad = new Promise(res => {
+      const sc = document.createElement('script');
+      sc.src = '/__mdr/mathlive/mathlive.min.js';
+      sc.onerror = () => res(false);
+      sc.onload = () => {
+        try {
+          const ME = window.MathfieldElement;
+          ME.fontsDirectory = '/__mdr/katex/fonts';
+          ME.soundsDirectory = null;
+          try { ME.locale = 'fr'; } catch (e) { }
+          const f = new ME();
+          f.id = 'mField';
+          f.mathVirtualKeyboardPolicy = 'manual';
+          f.smartMode = false;
+          f.letterShapeStyle = 'tex';
+          f.addEventListener('beforeinput', () => { if (!fieldBusy) fieldDirty = true; });
+          f.addEventListener('input', () => { if (fieldBusy) return; fieldDirty = true; mTa.value = fromField(); placePanel(); });
+          f.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); e.stopPropagation(); closePanel(); } }, true);
+          $('#mPrev').replaceWith(f);
+          pMath.classList.add('ml');
+          mf = f;
+          res(true);
+        } catch (err) { res(false); }
+      };
+      document.head.appendChild(sc);
+    });
+    return mlLoad;
+  }
+  // A palette snippet in MathLive's insert syntax: #@ = what precedes the caret (x → x²),
+  // #0 = the selection, #? = an empty field.
+  const toField = sn => (sn.startsWith('{@}') ? '#@' + sn.slice(3) : sn.replace('@', '#0')).replace(/\{\}/g, '{#?}').replace(/\[\]/g, '[#?]').replace(/ {2}/g, ' #? ');
   function previewMath() {
+    if (mf) return;
     const pv = $('#mPrev'), tex = $('#mTex').value.trim();
     pv.classList.remove('err');
     if (!tex) { pv.textContent = ''; return; }
     try { window.katex.render(tex, pv, { displayMode: true, throwOnError: true, strict: 'ignore', output: 'html' }); }
     catch (err) { pv.classList.add('err'); pv.textContent = String(err && err.message || err).replace(/^KaTeX parse error: /, ''); }
   }
-  $('#mTex').addEventListener('input', previewMath);
+  $('#mTex').addEventListener('input', () => { if (mf) setField(mTa.value); else previewMath(); });
   // ---- equation editor: palettes of symbols and structures ----
   // An entry is a LaTeX snippet, or [snippet, what the button shows]. In a snippet, @ is
   // where the caret goes (or the selected text); empty {} are the next fields (Tab).
@@ -1535,6 +1598,9 @@
     mGrid.dataset.p = id;
   }
   function insertSnippet(sn) {
+    prefs.mathRecent = [sn].concat((prefs.mathRecent || []).filter(x => x !== sn)).slice(0, 24);
+    savePrefs();
+    if (mf) { mf.focus(); mf.executeCommand(['insert', toField(sn), { focus: true, selectionMode: 'placeholder' }]); fieldDirty = true; mTa.value = fromField(); placePanel(); return; }
     const a = mTa.selectionStart, picked = mTa.value.slice(a, mTa.selectionEnd), at = sn.indexOf('@');
     let text = at >= 0 ? sn.replace('@', picked) : sn;
     if (at < 0 && /\\[a-zA-Z]+$/.test(sn)) text += ' ';
@@ -1544,8 +1610,6 @@
     if (at >= 0 && !picked) pos = a + at;
     else if (at >= 0) { const k = text.indexOf('{}', at + picked.length); if (k >= 0) pos = a + k + 1; }
     mTa.setSelectionRange(pos, pos);
-    prefs.mathRecent = [sn].concat((prefs.mathRecent || []).filter(x => x !== sn)).slice(0, 24);
-    savePrefs();
     previewMath();
   }
   for (const box of [mTabs, mGrid]) box.addEventListener('mousedown', e => e.preventDefault());      // the caret stays in the formula
@@ -1628,6 +1692,7 @@
         body.classList.add('editing'); body.classList.toggle('tools', MD);
         app.barExtra = MD ? 40 : 0;
         await showSurface(false);
+        if (MD) setTimeout(loadMathLive, 600);       // ready before the first formula is opened
       } else {
         const text = currentText();
         H().commit();
@@ -1641,7 +1706,7 @@
         app._.initDoc();
         getSelection().removeAllRanges();
       }
-      swMode.classList.toggle('b', S.mode === 'edit');
+      swMode.classList.toggle('b', S.mode !== 'edit');
       swMode.setAttribute('aria-checked', S.mode === 'edit');
       send({ cmd: 'mode', value: S.mode });
       applyAnchor(anchor);
@@ -1693,6 +1758,8 @@
   /* ---------------- Keyboard (called first by app.js) ---------------- */
   app.onKey = (e, c, lk) => {
     const hit = fn => { e.preventDefault(); e.stopPropagation(); fn(); return true; };
+    // Escape first closes MathLive's own menu, if it is open.
+    if (e.key === 'Escape' && panel === pMath && mf && mf.shadowRoot && [...mf.shadowRoot.querySelectorAll('[role=menu], .ui-menu-container')].some(m => m.getClientRects().length)) return false;
     if (e.key === 'Escape' && panel) return hit(() => { const m = panel === pMath; closePanel(true); if (!m) backToText(); });
     if (!c || e.altKey) return false;
     if (lk === 'n') return hit(() => send({ cmd: 'new' }));

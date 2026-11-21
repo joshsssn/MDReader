@@ -579,6 +579,23 @@
   addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(onScroll); } }, { passive: true });
   addEventListener('beforeunload', () => { if (!SA && B.hasDoc && !app.editing) { const p = curPos(); if (p) send({ cmd: 'pos', pos: p }); } });
 
+  /* ---------------- Document statistics ---------------- */
+  // Characters, reading time (230 words/min) and LLM tokens (about 4 characters each).
+  const nf = n => Math.round(n).toLocaleString('fr-FR');
+  app.setStats = st => {
+    let box = $('#stats');
+    if (!box) { box = document.createElement('div'); box.id = 'stats'; body.appendChild(box); }
+    if (!st || !st.chars) { box.hidden = true; return; }
+    const min = st.words / 230;
+    box.hidden = false;
+    box.textContent = `${nf(st.chars)} caractères · ${min < 1 ? '< 1' : nf(min)} min de lecture · ≈ ${nf(st.chars / 4)} tokens`;
+    box.title = `${nf(st.words)} mots · lecture à 230 mots/min · tokens estimés à 1 pour 4 caractères`;
+  };
+  if (B.hasDoc) {
+    if (B.stats) app.setStats(B.stats);
+    else (window.requestIdleCallback || setTimeout)(() => { const t = content.textContent; app.setStats({ chars: t.length, words: (t.match(/\S+/g) || []).length }); }, { timeout: 2000 });
+  }
+
   /* ---------------- Start ---------------- */
   initDoc();
   // What the editor (editor.js, application only) needs from the reader.

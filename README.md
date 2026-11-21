@@ -2,7 +2,7 @@
 
 <h1 align="center">MDReader (MDR)</h1>
 
-<p align="center">Lecteur Markdown portable et ultra-rapide pour Windows, avec éditeur intégré — un seul <code>.exe</code> de 2 Mo, sans installation.</p>
+<p align="center">Lecteur Markdown portable et ultra-rapide pour Windows, avec éditeur intégré — un seul <code>.exe</code> de 3 Mo, sans installation.</p>
 
 <p align="center"><a href="https://github.com/joshsssn/MDReader/releases/latest"><b>⬇ Télécharger MDReader.exe</b></a> &nbsp;·&nbsp; <a href="#extension-vs-code"><b>🧩 Extension VS Code</b></a> &nbsp;·&nbsp; <a href="https://joshsssn.github.io/MDReader/"><b>📱 Version web / mobile</b></a></p>
 
@@ -31,6 +31,7 @@ Le Markdown est converti en Rust ([pulldown-cmark](https://github.com/pulldown-c
 - **Plein écran** F11 (barre masquée, réapparaît en haut de l'écran)
 - **Export PDF** direct et **export HTML autonome** (un seul fichier, avec sommaire, recherche et thèmes)
 - Reprise de la position de lecture, fichiers récents, rechargement automatique quand le fichier change
+- **Statistiques** du document en bas à droite : nombre de caractères, temps de lecture (230 mots/min) et estimation du nombre de tokens pour un LLM (environ 1 token pour 4 caractères)
 - **Éditeur intégré** pour les `.md` et les `.txt` (application Windows) : voir ci-dessous. En lecture, rien n'est jamais modifié
 
 ![Thème Nuit et panneau Apparence](docs/screenshot-nuit.png)
@@ -41,10 +42,10 @@ Un interrupteur **Lecture / Édition** dans la barre (`Ctrl+E`) ouvre le documen
 
 - **Markdown, vue « Rendu »** : édition directe du document mis en forme, avec une barre d'outils (styles de titre, gras, italique, souligné, barré, code, lien, image, listes à puces, numérotées et à cocher, citation, encadrés, bloc de code, formule, tableau, séparateur, note de bas de page).
 - **La syntaxe Markdown est reconnue à la frappe** : `### ` devient un titre, `- ` ou `1. ` une liste, `[ ] ` une case à cocher, `> ` une citation, ```` ``` ```` puis Entrée un bloc de code, `$$` puis Entrée une formule, `---` un séparateur, `| a | b |` un tableau ; `**gras**`, `*italique*`, `~~barré~~`, `` `code` ``, `$x^2$` et `[texte](lien)` sont mis en forme dès le caractère fermant.
-- **Éditeur d'équations** : un clic sur une formule (ou le bouton ∑) ouvre un panneau avec aperçu en direct et palettes de symboles par onglets (exposants, fractions et racines, sommes et intégrales, lettres grecques, opérateurs, flèches, parenthèses et matrices, accents, fonctions, récents). Un clic insère la structure, `Tab` passe au champ suivant, le LaTeX reste modifiable à la main.
+- **Éditeur d'équations** ([MathLive](https://cortexjs.io/mathlive/)) : un clic sur une formule (ou le bouton ∑) l'ouvre dans un champ où elle se modifie directement, comme dans Word : on clique dans une case de matrice, un numérateur ou un exposant et on tape. Des palettes par onglets insèrent fractions, racines, sommes, intégrales, lettres grecques, opérateurs, flèches, matrices, accents et fonctions ; `Tab` passe au champ suivant, un clic droit ajoute ou supprime des lignes et colonnes de matrice. Le LaTeX reste visible et modifiable dessous.
 - **Markdown, vue « Source »** (second interrupteur **Rendu / Source**, `Ctrl+Maj+E`) : le texte brut, pour retoucher la structure. La barre d'outils y insère la syntaxe correspondante.
 - **Fichiers `.txt`** : éditeur de texte brut, sans mise en forme.
-- **Enregistrement** explicite (`Ctrl+S`, bouton de la barre), **Enregistrer sous** (`Ctrl+Maj+S`), annuler / rétablir (`Ctrl+Z` / `Ctrl+Y`). Un point signale les modifications non enregistrées, et une confirmation est demandée avant de fermer ou de changer de fichier.
+- **Enregistrement** explicite (`Ctrl+S`, bouton de la barre), **Enregistrer sous** (`Ctrl+Maj+S` ou la flèche à côté du bouton : les modifications vont dans un autre fichier, l'original reste intact), annuler / rétablir (`Ctrl+Z` / `Ctrl+Y`). Un point signale les modifications non enregistrées, et une confirmation est demandée avant de fermer ou de changer de fichier.
 - **Fidélité** : seuls les blocs réellement modifiés sont réécrits. Le reste du fichier est conservé à l'octet près (mise en page du Markdown, fins de ligne, front matter, HTML).
 - Copier depuis l'éditeur donne du Markdown ; coller du Markdown l'insère mis en forme.
 
@@ -168,4 +169,4 @@ Structure : [`src/render.rs`](src/render.rs) (Markdown → HTML, sommaire), [`sr
 
 ## Licence
 
-[MIT](LICENSE) © 2026 Josh Soussan. KaTeX est distribué sous licence MIT.
+[MIT](LICENSE) © 2026 Josh Soussan. KaTeX et MathLive sont distribués sous licence MIT.

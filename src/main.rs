@@ -26,6 +26,7 @@ static APP_CSS: &str = include_str!("../assets/app.css");
 static APP_JS: &str = include_str!("../assets/app.js");
 static EDITOR_CSS: &str = include_str!("../assets/editor.css");
 static EDITOR_JS: &str = include_str!("../assets/editor.js");
+static MATHLIVE_JS: &str = include_str!("../assets/mathlive/mathlive.min.js");
 static KATEX_CSS: &str = include_str!("../assets/katex/katex.min.css");
 static KATEX_JS: &str = include_str!("../assets/katex/katex.min.js");
 static FONTS: &[(&str, &[u8])] = include!("fonts.inc");
@@ -797,6 +798,7 @@ fn build_page(settings: &Settings, doc: Option<&Doc>, standalone: bool, edit_mod
             "file": file,
             "hasDoc": doc.is_some(),
             "headings": doc.map(|d| d.rendered.toc.len()).unwrap_or(0),
+            "stats": doc.map(|d| json!({"chars": d.src.chars().count(), "words": d.src.split_whitespace().count()})),
             // The editor only exists in the application (not in exported pages).
             "edit": if standalone { Value::Null } else {
                 json!({
@@ -881,6 +883,7 @@ fn serve(served: &Mutex<Served>, req: &Request<Vec<u8>>) -> Response<Cow<'static
             "app.js" => Some((APP_JS.as_bytes(), "text/javascript")),
             "editor.css" => Some((EDITOR_CSS.as_bytes(), "text/css")),
             "editor.js" => Some((EDITOR_JS.as_bytes(), "text/javascript")),
+            "mathlive/mathlive.min.js" => Some((MATHLIVE_JS.as_bytes(), "text/javascript")),
             "katex/katex.min.css" => Some((KATEX_CSS.as_bytes(), "text/css")),
             "katex/katex.min.js" => Some((KATEX_JS.as_bytes(), "text/javascript")),
             a => a
