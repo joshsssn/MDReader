@@ -21,9 +21,8 @@ pub struct Rendered {
 const BLOCKS_PER_SECTION: usize = 40;
 const SEC_BREAK: &str = "</section>\n<section class=\"sec\">";
 
-pub fn render(src: &str) -> Rendered {
-    let src = src.strip_prefix('\u{feff}').unwrap_or(src);
-    let opts = Options::ENABLE_TABLES
+fn options() -> Options {
+    Options::ENABLE_TABLES
         | Options::ENABLE_FOOTNOTES
         | Options::ENABLE_STRIKETHROUGH
         | Options::ENABLE_TASKLISTS
@@ -32,7 +31,96 @@ pub fn render(src: &str) -> Rendered {
         | Options::ENABLE_GFM
         | Options::ENABLE_DEFINITION_LIST
         | Options::ENABLE_YAML_STYLE_METADATA_BLOCKS
-        | Options::ENABLE_PLUSES_DELIMITED_METADATA_BLOCKS;
+        | Options::ENABLE_PLUSES_DELIMITED_METADATA_BLOCKS
+}
+
+/// One top-level block of the document, for the editor: its exact Markdown source, the
+/// text between it and the next block (blank lines, link reference definitions…) and its
+/// HTML. Concatenating `head` and every `src + tail` gives the document back, byte for
+/// byte, so blocks the user does not touch are saved exactly as they were written.
+#[allow(dead_code)]
+pub struct Block {
+    pub src: String,
+    pub tail: String,
+    pub html: String,
+}
+
+#[allow(dead_code)]
+pub fn blocks(src: &str) -> (String, Vec<Block>) {
+    const MARK: &str = "\u{0}";
+    let mut out: Vec<Event> = Vec::with_capacity(src.len() / 6);
+    let mut ranges: Vec<std::ops::Range<usize>> = Vec::new();
+    let mut depth = 0usize;
+    let mut skip: Option<&'static str> = None; // closing HTML of a block whose events are dropped
+    let mut math_block: Option<String> = None;
+
+    for (ev, range) in Parser::new_ext(src, options()).into_offset_iter() {
+        if depth == 0 {
+            out.push(Event::Html(MARK.into()));
+            ranges.push(range.clone());
+        }
+        match &ev {
+            Event::Start(_) => depth += 1,
+            Event::End(_) => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        if let Some(close) = skip {
+            if depth == 0 {
+                out.push(Event::Html(close.into()));
+                skip = None;
+            }
+            continue;
+        }
+        if let Some(m) = math_block.as_mut() {
+            match ev {
+                Event::Text(t) => m.push_str(&t),
+                Event::End(TagEnd::CodeBlock) => {
+                    let m = math_block.take().unwrap();
+                    out.push(Event::Html("<p class=\"mathp\">".into()));
+                    out.push(Event::DisplayMath(m.into()));
+                    out.push(Event::Html("</p>".into()));
+                }
+                _ => {}
+            }
+            continue;
+        }
+        match ev {
+            // Front matter and raw HTML are kept verbatim (edited in source view).
+            Event::Start(Tag::MetadataBlock(_)) => {
+                out.push(Event::Html(format!("<div class=\"rawblock\">{}", esc(&src[range])).into()));
+                skip = Some("</div>");
+            }
+            Event::Start(Tag::HtmlBlock) if depth == 1 => {
+                // The browser may repair this HTML (unclosed tags…): keep its source too.
+                out.push(Event::Html(format!("<div class=\"htmlblock\" data-md=\"{}\">", esc(src[range].trim_end())).into()));
+            }
+            Event::End(TagEnd::HtmlBlock) if depth == 0 => out.push(Event::Html("</div>".into())),
+            Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(ref lang)))
+                if matches!(lang.trim(), "math" | "latex" | "tex" | "katex") =>
+            {
+                math_block = Some(String::new());
+            }
+            e => out.push(e),
+        }
+    }
+
+    let mut html = String::with_capacity(src.len() + src.len() / 2);
+    html::push_html(&mut html, out.into_iter());
+    let head = src[..ranges.first().map(|r| r.start).unwrap_or(src.len())].to_string();
+    let mut list = Vec::with_capacity(ranges.len());
+    for (i, piece) in html.split(MARK).skip(1).enumerate() {
+        let Some(r) = ranges.get(i) else { break };
+        // Some ranges reported by the parser run into the next block: never overlap.
+        let next = ranges.get(i + 1).map(|n| n.start).unwrap_or(src.len()).max(r.start);
+        let end = r.end.min(next);
+        list.push(Block { src: src[r.start..end].to_string(), tail: src[end..next].to_string(), html: piece.to_string() });
+    }
+    (head, list)
+}
+
+pub fn render(src: &str) -> Rendered {
+    let src = src.strip_prefix('\u{feff}').unwrap_or(src);
+    let opts = options();
 
     let mut out: Vec<Event> = Vec::with_capacity(src.len() / 6);
     let mut toc: Vec<Heading> = Vec::new();

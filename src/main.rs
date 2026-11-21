@@ -24,6 +24,8 @@ const APP_NAME: &str = "MDReader";
 static SHELL: &str = include_str!("../assets/shell.html");
 static APP_CSS: &str = include_str!("../assets/app.css");
 static APP_JS: &str = include_str!("../assets/app.js");
+static EDITOR_CSS: &str = include_str!("../assets/editor.css");
+static EDITOR_JS: &str = include_str!("../assets/editor.js");
 static KATEX_CSS: &str = include_str!("../assets/katex/katex.min.css");
 static KATEX_JS: &str = include_str!("../assets/katex/katex.min.js");
 static FONTS: &[(&str, &[u8])] = include!("fonts.inc");
@@ -57,8 +59,50 @@ struct Settings {
 }
 
 struct Doc {
-    path: PathBuf,
+    /// None for a new document that was never saved.
+    path: Option<PathBuf>,
+    name: String,
+    /// Text as last loaded or saved, without BOM and with LF line endings.
+    src: String,
+    bom: bool,
+    crlf: bool,
+    /// Not valid UTF-8: shown, but never written back.
+    lossy: bool,
     rendered: render::Rendered,
+}
+
+impl Doc {
+    fn from_text(path: Option<PathBuf>, name: String, text: &str) -> Doc {
+        let bom = text.starts_with('\u{feff}');
+        let body = text.strip_prefix('\u{feff}').unwrap_or(text);
+        let crlf = body.contains("\r\n");
+        let src = if crlf { body.replace("\r\n", "\n") } else { body.to_string() };
+        let rendered = render::render(&src);
+        Doc { path, name, src, bom, crlf, lossy: false, rendered }
+    }
+    fn kind(&self) -> &'static str {
+        if is_txt(&self.name) { "txt" } else { "md" }
+    }
+    fn key(&self) -> Option<String> {
+        self.path.as_ref().map(|p| p.display().to_string())
+    }
+    fn dir(&self) -> Option<PathBuf> {
+        self.path.as_ref().and_then(|p| p.parent().map(Path::to_path_buf))
+    }
+}
+
+fn is_txt(name: &str) -> bool {
+    let l = name.to_ascii_lowercase();
+    l.ends_with(".txt") || l.ends_with(".text") || l.ends_with(".log")
+}
+
+/// What to do once unsaved changes have been saved.
+enum Pending {
+    Close,
+    Open(PathBuf),
+    OpenDialog,
+    New,
+    Reload,
 }
 
 /// What the custom protocol serves: the current page and the folder of the open file.
@@ -66,6 +110,8 @@ struct Doc {
 struct Served {
     page: Arc<String>,
     base: Option<PathBuf>,
+    /// Answers to the editor's requests, fetched by the page (they can be several MB).
+    replies: HashMap<String, String>,
 }
 
 type Watch = Arc<Mutex<Option<(PathBuf, Option<SystemTime>)>>>;
@@ -84,6 +130,11 @@ struct App {
     /// CLI `--pdf in.md out.pdf`: export then quit.
     auto_pdf: Option<PathBuf>,
     quit: bool,
+    /// The editor has unsaved changes.
+    dirty: bool,
+    /// The page shows the editor (kept across reloads of the same file).
+    edit_mode: bool,
+    pending: Option<Pending>,
 }
 
 fn main() {
@@ -98,8 +149,8 @@ fn main() {
     let args: Vec<PathBuf> = std::env::args_os().skip(1).map(PathBuf::from).collect();
     if args.len() == 3 && args[0].as_os_str() == "--export" {
         let src = fs::read_to_string(&args[1]).unwrap_or_default();
-        let doc = Doc { path: args[1].clone(), rendered: render::render(&src) };
-        let _ = fs::write(&args[2], build_page(&settings, Some(&doc), true));
+        let doc = Doc::from_text(Some(args[1].clone()), file_name(&args[1]), &src);
+        let _ = fs::write(&args[2], build_page(&settings, Some(&doc), true, false));
         return;
     }
     let auto_pdf = (args.len() == 3 && args[0].as_os_str() == "--pdf").then(|| args[2].clone());
@@ -176,6 +227,9 @@ fn main() {
         nav: 0,
         auto_pdf,
         quit: false,
+        dirty: false,
+        edit_mode: false,
+        pending: None,
     };
     if app.settings.zoom < 25.0 {
         app.settings.zoom = 100.0;
@@ -192,15 +246,17 @@ fn main() {
         *control_flow = ControlFlow::Wait;
         match event {
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
-                app.remember_window();
-                app.save();
-                *control_flow = ControlFlow::Exit;
+                if app.guard(Pending::Close) {
+                    app.run(Pending::Close);
+                }
             }
             Event::UserEvent(UserEvent::Ipc(msg)) => app.ipc(&msg),
             Event::UserEvent(UserEvent::PdfDone(..)) if app.auto_pdf.is_some() => app.quit = true,
-            Event::UserEvent(UserEvent::Open(p)) => app.open(p),
+            Event::UserEvent(UserEvent::Open(p)) => app.request_open(p),
             Event::UserEvent(UserEvent::Changed) => {
-                if app.reload() {
+                if app.dirty {
+                    app.js("app.changedOnDisk && app.changedOnDisk()");
+                } else if app.reload() {
                     app.js("app.toast('Fichier modifié — rechargé')");
                 }
             }
@@ -225,29 +281,126 @@ impl App {
         let _ = self.webview.evaluate_script(&format!("window.app && ({code})"));
     }
 
+    /// Ask what to do with unsaved changes before `next`. Returns true when `next` can
+    /// run right away; false when it was cancelled or will run after the save.
+    fn guard(&mut self, next: Pending) -> bool {
+        if !self.dirty || self.doc.is_none() {
+            return true;
+        }
+        let name = self.doc.as_ref().map(|d| d.name.clone()).unwrap_or_default();
+        let answer = rfd::MessageDialog::new()
+            .set_title(APP_NAME)
+            .set_description(format!("Enregistrer les modifications de « {name} » ?"))
+            .set_level(rfd::MessageLevel::Warning)
+            .set_buttons(rfd::MessageButtons::YesNoCancel)
+            .set_parent(&self.window)
+            .show();
+        match answer {
+            rfd::MessageDialogResult::Yes => {
+                self.pending = Some(next);
+                self.js("app.saveNow && app.saveNow()");
+                false
+            }
+            rfd::MessageDialogResult::No => {
+                self.set_dirty(false);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn run(&mut self, next: Pending) {
+        match next {
+            Pending::Close => {
+                self.remember_window();
+                self.save();
+                self.quit = true;
+            }
+            Pending::Open(p) => self.open(p),
+            Pending::OpenDialog => self.open_dialog(),
+            Pending::New => self.new_doc(),
+            Pending::Reload => {
+                self.reload();
+            }
+        }
+    }
+
+    fn set_dirty(&mut self, dirty: bool) {
+        self.dirty = dirty;
+        self.update_title();
+    }
+
+    fn update_title(&self) {
+        let title = match &self.doc {
+            Some(d) => format!("{}{} — {APP_NAME}", if self.dirty { "● " } else { "" }, d.name),
+            None => APP_NAME.to_string(),
+        };
+        self.window.set_title(&title);
+    }
+
+    fn request_open(&mut self, path: PathBuf) {
+        if self.guard(Pending::Open(path.clone())) {
+            self.open(path);
+        }
+    }
+
+    fn open_dialog(&mut self) {
+        let dlg = rfd::FileDialog::new()
+            .set_title("Ouvrir un fichier")
+            .add_filter("Markdown et texte", &["md", "markdown", "mdown", "mkd", "mdx", "txt"])
+            .add_filter("Tous les fichiers", &["*"])
+            .set_parent(&self.window);
+        let dlg = match self.doc.as_ref().and_then(Doc::dir) {
+            Some(dir) => dlg.set_directory(dir),
+            None => dlg,
+        };
+        if let Some(p) = dlg.pick_file() {
+            self.open(p);
+        }
+    }
+
+    fn new_doc(&mut self) {
+        *self.watch.lock().unwrap() = None;
+        self.doc = Some(Doc::from_text(None, "Sans titre.md".into(), ""));
+        self.dirty = false;
+        self.edit_mode = true;
+        self.show();
+    }
+
     fn open(&mut self, path: PathBuf) {
         let path = fs::canonicalize(&path).map(strip_unc).unwrap_or(path);
-        let src = match fs::read(&path) {
-            Ok(b) => String::from_utf8(b).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned()),
+        let (text, lossy) = match fs::read(&path) {
+            Ok(b) => match String::from_utf8(b) {
+                Ok(s) => (s, false),
+                Err(e) => (String::from_utf8_lossy(e.as_bytes()).into_owned(), true),
+            },
             Err(e) => {
                 self.js(&format!("app.toast({})", json!(format!("Impossible d’ouvrir : {e}"))));
                 return;
             }
         };
-        let rendered = render::render(&src);
+        // Reloading the same file keeps the editor open; another file starts in the reader.
+        let same = self.doc.as_ref().and_then(|d| d.path.as_ref()) == Some(&path);
+        if !same {
+            self.edit_mode = false;
+        }
         let key = path.display().to_string();
         self.settings.recent.retain(|r| r != &key);
         self.settings.recent.insert(0, key);
         self.settings.recent.truncate(15);
         *self.watch.lock().unwrap() = Some((path.clone(), mtime(&path)));
-        self.doc = Some(Doc { path, rendered });
+        let mut doc = Doc::from_text(Some(path.clone()), file_name(&path), &text);
+        doc.lossy = lossy;
+        self.doc = Some(doc);
+        self.dirty = false;
+        self.pending = None;
         self.save();
         self.show();
     }
 
     /// Re-read the current file. Returns false if there is none.
     fn reload(&mut self) -> bool {
-        match self.doc.as_ref().map(|d| d.path.clone()) {
+        match self.doc.as_ref().and_then(|d| d.path.clone()) {
             Some(p) => {
                 self.open(p);
                 true
@@ -261,42 +414,167 @@ impl App {
         {
             let mut s = self.served.lock().unwrap();
             s.page = Arc::new(page);
-            s.base = self.doc.as_ref().and_then(|d| d.path.parent().map(Path::to_path_buf));
+            s.base = self.doc.as_ref().and_then(Doc::dir);
+            s.replies.clear();
         }
-        let title = match &self.doc {
-            Some(d) => format!("{} — {APP_NAME}", file_name(&d.path)),
-            None => APP_NAME.to_string(),
-        };
-        self.window.set_title(&title);
+        self.update_title();
         self.nav += 1;
         let _ = self.webview.load_url(&format!("{ORIGIN}/?v={}", self.nav));
     }
 
+    /// Answer a request made by the page with `ask()`: the page fetches the JSON.
+    fn reply(&self, id: &Value, value: Value) {
+        let Some(id) = id.as_u64() else { return };
+        self.served.lock().unwrap().replies.insert(id.to_string(), value.to_string());
+        self.js(&format!("app._replyAt({id})"));
+    }
+
+    /// Write the editor's text to the file (asking for a name first when needed).
+    fn save_doc(&mut self, text: &str, save_as: bool) {
+        let Some(d) = self.doc.as_ref() else { return };
+        if d.lossy && !save_as {
+            self.pending = None;
+            self.js("app.saveFailed('Fichier non UTF-8 : utiliser « Enregistrer sous »')");
+            return;
+        }
+        let path = match (&d.path, save_as) {
+            (Some(p), false) => p.clone(),
+            _ => {
+                let md = ("Markdown", &["md", "markdown"][..]);
+                let txt = ("Texte", &["txt"][..]);
+                let (first, second) = if d.kind() == "txt" { (txt, md) } else { (md, txt) };
+                let mut dlg = rfd::FileDialog::new()
+                    .set_title("Enregistrer sous")
+                    .add_filter(first.0, first.1)
+                    .add_filter(second.0, second.1)
+                    .add_filter("Tous les fichiers", &["*"])
+                    .set_file_name(&d.name)
+                    .set_parent(&self.window);
+                if let Some(dir) = d.dir() {
+                    dlg = dlg.set_directory(dir);
+                }
+                match dlg.save_file() {
+                    Some(p) => p,
+                    None => {
+                        self.pending = None;
+                        self.js("app.saveFailed('')");
+                        return;
+                    }
+                }
+            }
+        };
+        let mut out = String::with_capacity(text.len() + 16);
+        if d.bom && !d.lossy {
+            out.push('\u{feff}');
+        }
+        if d.crlf {
+            out.push_str(&text.replace('\n', "\r\n"));
+        } else {
+            out.push_str(text);
+        }
+        // Do not let the watcher see our own write as an external change.
+        *self.watch.lock().unwrap() = None;
+        if let Err(e) = fs::write(&path, out) {
+            self.pending = None;
+            *self.watch.lock().unwrap() = d.path.clone().map(|p| (p.clone(), mtime(&p)));
+            self.js(&format!("app.saveFailed({})", json!(format!("Échec de l’enregistrement : {e}"))));
+            return;
+        }
+        let path = fs::canonicalize(&path).map(strip_unc).unwrap_or(path);
+        let old_kind = d.kind();
+        let (bom, crlf) = (d.bom && !d.lossy, d.crlf);
+        let mut doc = Doc::from_text(Some(path.clone()), file_name(&path), text);
+        doc.bom = bom;
+        doc.crlf = crlf;
+        let kind_changed = doc.kind() != old_kind;
+        let key = path.display().to_string();
+        self.settings.recent.retain(|r| r != &key);
+        self.settings.recent.insert(0, key.clone());
+        self.settings.recent.truncate(15);
+        *self.watch.lock().unwrap() = Some((path.clone(), mtime(&path)));
+        self.served.lock().unwrap().base = doc.dir();
+        let name = doc.name.clone();
+        self.doc = Some(doc);
+        self.dirty = false;
+        self.save();
+        self.update_title();
+        if let Some(next) = self.pending.take() {
+            return self.run(next);
+        }
+        if kind_changed {
+            // .md <-> .txt: the editor is not the same, load the page again.
+            self.show();
+        } else {
+            self.js(&format!("app.onSaved({})", json!({"name": name, "path": key})));
+        }
+    }
+
+    /// Choose an image and give the editor its path relative to the document.
+    fn pick_image(&self) -> Value {
+        let Some(base) = self.doc.as_ref().and_then(Doc::dir) else {
+            return json!({"error": "Enregistre d’abord le document pour y insérer une image"});
+        };
+        let picked = rfd::FileDialog::new()
+            .set_title("Insérer une image")
+            .add_filter("Images", &["png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "bmp"])
+            .set_directory(&base)
+            .set_parent(&self.window)
+            .pick_file();
+        let Some(p) = picked else { return json!({}) };
+        let p = fs::canonicalize(&p).map(strip_unc).unwrap_or(p);
+        let name = p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+        json!({"src": relative_to(&base, &p), "alt": name})
+    }
+
     fn page(&self, standalone: bool) -> String {
-        build_page(&self.settings, self.doc.as_ref(), standalone)
+        build_page(&self.settings, self.doc.as_ref(), standalone, self.edit_mode)
     }
     fn ipc(&mut self, msg: &str) {
         let v: Value = serde_json::from_str(msg).unwrap_or_default();
         let s = |k: &str| v.get(k).and_then(Value::as_str).unwrap_or("").to_string();
         match v.get("cmd").and_then(Value::as_str).unwrap_or("") {
             "open" => {
-                let dlg = rfd::FileDialog::new()
-                    .set_title("Ouvrir un fichier Markdown")
-                    .add_filter("Markdown", &["md", "markdown", "mdown", "mkd", "mdx", "txt"])
-                    .add_filter("Tous les fichiers", &["*"])
-                    .set_parent(&self.window);
-                let dlg = match self.doc.as_ref().and_then(|d| d.path.parent()) {
-                    Some(dir) => dlg.set_directory(dir),
-                    None => dlg,
-                };
-                if let Some(p) = dlg.pick_file() {
-                    self.open(p);
+                if self.guard(Pending::OpenDialog) {
+                    self.open_dialog();
                 }
+            }
+            "new" => {
+                if self.guard(Pending::New) {
+                    self.new_doc();
+                }
+            }
+            "source" => {
+                let text = self.doc.as_ref().map(|d| d.src.as_str()).unwrap_or("");
+                self.reply(&v["id"], json!({"text": text}));
+            }
+            "blocks" => {
+                let (head, blocks) = render::blocks(&s("text"));
+                let list: Vec<Value> =
+                    blocks.iter().map(|b| json!({"src": b.src, "tail": b.tail, "html": b.html})).collect();
+                self.reply(&v["id"], json!({"head": head, "blocks": list}));
+            }
+            "render" => {
+                // The reader shows the editor's current text (saved or not).
+                let r = render::render(&s("text"));
+                self.reply(&v["id"], json!({"title": r.title, "toc": render::toc_html(&r.toc), "body": r.body}));
+                if let Some(d) = self.doc.as_mut() {
+                    d.rendered = r;
+                }
+            }
+            "save" => {
+                let save_as = v.get("as").and_then(Value::as_bool).unwrap_or(false);
+                self.save_doc(&s("text"), save_as);
+            }
+            "dirty" => self.set_dirty(v.get("value").and_then(Value::as_bool).unwrap_or(false)),
+            "mode" => self.edit_mode = s("value") == "edit",
+            "pickImage" => {
+                let r = self.pick_image();
+                self.reply(&v["id"], r);
             }
             "openPath" => {
                 let p = PathBuf::from(s("path"));
                 if p.is_file() {
-                    self.open(p);
+                    self.request_open(p);
                 } else {
                     self.settings.recent.retain(|r| r != &s("path"));
                     self.js("app.toast('Fichier introuvable')");
@@ -307,7 +585,9 @@ impl App {
                 self.save();
             }
             "reload" => {
-                self.reload();
+                if self.guard(Pending::Reload) {
+                    self.reload();
+                }
             }
             "zoom" => {
                 let z = v.get("value").and_then(Value::as_f64).unwrap_or(100.0).clamp(25.0, 500.0);
@@ -334,8 +614,7 @@ impl App {
                 self.save();
             }
             "pos" => {
-                if let Some(d) = &self.doc {
-                    let key = d.path.display().to_string();
+                if let Some(key) = self.doc.as_ref().and_then(Doc::key) {
                     if self.settings.positions.len() > 300 && !self.settings.positions.contains_key(&key) {
                         let k = self.settings.positions.keys().next().cloned();
                         if let Some(k) = k {
@@ -375,7 +654,7 @@ impl App {
             let p = base.join(path.trim_start_matches('/'));
             let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
             if matches!(ext.as_str(), "md" | "markdown" | "mdown" | "mkd" | "mdx") && p.is_file() {
-                self.open(p);
+                self.request_open(p);
             } else if p.exists() {
                 let _ = std::process::Command::new("explorer").arg(&p).spawn();
             }
@@ -388,8 +667,7 @@ impl App {
         let stem = self
             .doc
             .as_ref()
-            .and_then(|d| d.path.file_stem())
-            .map(|s| s.to_string_lossy().into_owned())
+            .and_then(|d| Path::new(&d.name).file_stem().map(|s| s.to_string_lossy().into_owned()))
             .unwrap_or_else(|| "document".into());
         format!("{stem}.{ext}")
     }
@@ -400,7 +678,7 @@ impl App {
             .add_filter(label, &[ext])
             .set_file_name(self.default_name(ext))
             .set_parent(&self.window);
-        if let Some(dir) = self.doc.as_ref().and_then(|d| d.path.parent()) {
+        if let Some(dir) = self.doc.as_ref().and_then(Doc::dir) {
             dlg = dlg.set_directory(dir);
         }
         dlg.save_file()
@@ -484,7 +762,7 @@ impl App {
     }
 }
 
-fn build_page(settings: &Settings, doc: Option<&Doc>, standalone: bool) -> String {
+fn build_page(settings: &Settings, doc: Option<&Doc>, standalone: bool, edit_mode: bool) -> String {
         let prefs = &settings.prefs;
         let (theme, _, _) = current_theme(prefs);
         let pref = |k: &str, d: &str| -> String {
@@ -494,14 +772,13 @@ fn build_page(settings: &Settings, doc: Option<&Doc>, standalone: bool) -> Strin
 
         let (title, toc, body, pos, file) = match doc {
             Some(d) => {
-                let key = d.path.display().to_string();
-                let title = d.rendered.title.clone().unwrap_or_else(|| file_name(&d.path));
+                let title = d.rendered.title.clone().unwrap_or_else(|| d.name.clone());
                 (
                     title,
                     render::toc_html(&d.rendered.toc),
                     d.rendered.body.as_str(),
-                    settings.positions.get(&key).cloned().unwrap_or(Value::Null),
-                    file_name(&d.path),
+                    d.key().and_then(|k| settings.positions.get(&k).cloned()).unwrap_or(Value::Null),
+                    d.name.clone(),
                 )
             }
             None => (APP_NAME.to_string(), String::new(), "", Value::Null, String::new()),
@@ -520,6 +797,15 @@ fn build_page(settings: &Settings, doc: Option<&Doc>, standalone: bool) -> Strin
             "file": file,
             "hasDoc": doc.is_some(),
             "headings": doc.map(|d| d.rendered.toc.len()).unwrap_or(0),
+            // The editor only exists in the application (not in exported pages).
+            "edit": if standalone { Value::Null } else {
+                json!({
+                    "kind": doc.map(Doc::kind).unwrap_or("md"),
+                    "start": edit_mode && doc.is_some(),
+                    "untitled": doc.map(|d| d.path.is_none()).unwrap_or(false),
+                    "readonly": doc.map(|d| d.lossy).unwrap_or(false),
+                })
+            },
         })
         .to_string()
         .replace("</", "<\\/");
@@ -531,8 +817,8 @@ fn build_page(settings: &Settings, doc: Option<&Doc>, standalone: bool) -> Strin
             )
         } else {
             (
-                format!("<link rel=\"stylesheet\" href=\"{ASSET_PREFIX}katex/katex.min.css\">\n<link rel=\"stylesheet\" href=\"{ASSET_PREFIX}app.css\">"),
-                format!("<script src=\"{ASSET_PREFIX}katex/katex.min.js\"></script>\n<script src=\"{ASSET_PREFIX}app.js\"></script>"),
+                format!("<link rel=\"stylesheet\" href=\"{ASSET_PREFIX}katex/katex.min.css\">\n<link rel=\"stylesheet\" href=\"{ASSET_PREFIX}app.css\">\n<link rel=\"stylesheet\" href=\"{ASSET_PREFIX}editor.css\">"),
+                format!("<script src=\"{ASSET_PREFIX}katex/katex.min.js\"></script>\n<script src=\"{ASSET_PREFIX}app.js\"></script>\n<script src=\"{ASSET_PREFIX}editor.js\"></script>"),
             )
         };
 
@@ -585,10 +871,16 @@ fn serve(served: &Mutex<Served>, req: &Request<Vec<u8>>) -> Response<Cow<'static
         let page = served.lock().unwrap().page.clone();
         return ok("text/html; charset=utf-8", Cow::Owned(page.as_bytes().to_vec()));
     }
-    if let Some(asset) = path.strip_prefix(ASSET_PREFIX) {
+    if let Some(id) = path.strip_prefix(ASSET_PREFIX).and_then(|a| a.strip_prefix("reply/")) {
+        if let Some(json) = served.lock().unwrap().replies.remove(id) {
+            return ok("application/json", Cow::Owned(json.into_bytes()));
+        }
+    } else if let Some(asset) = path.strip_prefix(ASSET_PREFIX) {
         let found: Option<(&'static [u8], &str)> = match asset {
             "app.css" => Some((APP_CSS.as_bytes(), "text/css")),
             "app.js" => Some((APP_JS.as_bytes(), "text/javascript")),
+            "editor.css" => Some((EDITOR_CSS.as_bytes(), "text/css")),
+            "editor.js" => Some((EDITOR_JS.as_bytes(), "text/javascript")),
             "katex/katex.min.css" => Some((KATEX_CSS.as_bytes(), "text/css")),
             "katex/katex.min.js" => Some((KATEX_JS.as_bytes(), "text/javascript")),
             a => a
@@ -683,6 +975,19 @@ fn current_theme(prefs: &Value) -> (String, bool, (u8, u8, u8)) {
         .find(|t| t.0 == wanted)
         .unwrap_or(if night { &THEMES[3] } else { &THEMES[0] });
     (t.0.to_string(), t.1, t.2)
+}
+
+/// `target` as a path relative to the folder `base`, with forward slashes (for Markdown).
+fn relative_to(base: &Path, target: &Path) -> String {
+    let b: Vec<_> = base.components().collect();
+    let t: Vec<_> = target.components().collect();
+    let common = b.iter().zip(&t).take_while(|(x, y)| x == y).count();
+    if common == 0 {
+        return format!("file:///{}", target.display().to_string().replace('\\', "/"));
+    }
+    let mut parts: Vec<String> = vec!["..".to_string(); b.len() - common];
+    parts.extend(t[common..].iter().map(|c| c.as_os_str().to_string_lossy().into_owned()));
+    parts.join("/")
 }
 
 fn file_name(p: &Path) -> String {

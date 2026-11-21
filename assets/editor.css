@@ -1,0 +1,181 @@
+/* MDReader — éditeur (application Windows uniquement). */
+
+/* ---------- Interrupteurs à deux positions ---------- */
+.sw2 {
+  position: relative; display: grid; grid-template-columns: 1fr 1fr; align-items: center; flex: none;
+  height: 30px; padding: 2px; margin: 0 4px; border-radius: 999px; background: var(--bg3);
+  box-shadow: inset 0 0 0 1px var(--border); font: 600 12.5px/1 var(--sans); cursor: pointer; user-select: none;
+}
+.sw2 i {
+  position: absolute; top: 2px; bottom: 2px; left: 2px; width: calc(50% - 2px); border-radius: 999px;
+  background: var(--bg); box-shadow: 0 1px 3px var(--shadow);
+  transition: transform .24s cubic-bezier(.3, .7, .2, 1), background-color .2s;
+}
+.sw2.b i { transform: translateX(100%); }
+.sw2 button {
+  position: relative; height: 100%; border: 0; background: none; padding: 0 13px; font: inherit;
+  color: var(--muted); cursor: pointer; transition: color .15s; white-space: nowrap;
+}
+.sw2:not(.b) button:first-of-type, .sw2.b button:last-of-type { color: var(--fg); }
+#swMode.b i { background: var(--accent); }
+#swMode.b button:last-of-type { color: var(--bg); }
+.sw2:focus-visible, .sw2 button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+body.nodoc .sw2, body.nodoc #bSave { display: none; }
+body:not(.editing) .edui { display: none !important; }
+
+#bSave { position: relative; }
+#bSave::after {
+  content: ""; position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent); transform: scale(0); transition: transform .15s;
+}
+body.dirty #bSave { color: var(--fg); }
+body.dirty #bSave::after { transform: scale(1); }
+body:not(.dirty) #bSave { opacity: .45; }
+body.dirty #docTitle::after { content: " •"; color: var(--accent); }
+
+/* ---------- Barre d'outils (deuxième rangée de la barre) ---------- */
+#tools {
+  position: fixed; top: 46px; left: 0; right: 0; height: 40px; z-index: 29;
+  display: flex; align-items: center; gap: 1px; padding: 0 8px 2px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+  background: color-mix(in srgb, var(--bg2) 88%, transparent); backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border); font: 14px/1 var(--sans);
+  transform: translateY(-100%); opacity: 0; pointer-events: none; transition: transform .18s ease, opacity .18s ease;
+}
+#tools::before, #tools::after { content: ""; flex: 1; }
+#tools::-webkit-scrollbar { display: none; }
+body.tools { --bar-h: 86px; }
+body.tools #bar { height: 46px; border-bottom-color: transparent; }
+body.tools #tools { transform: none; opacity: 1; pointer-events: auto; }
+body.fs #tools { transform: translateY(-86px); opacity: 0; pointer-events: none; }
+body.fs.reveal.tools #tools { transform: none; opacity: 1; pointer-events: auto; }
+#main { transition: margin-left .18s ease, padding-top .18s ease; }
+#side { transition: transform .18s ease, top .18s ease; }
+
+.tb {
+  min-width: 32px; height: 30px; padding: 0 6px; display: inline-grid; place-items: center; flex: none;
+  border: 0; border-radius: 7px; background: transparent; color: var(--fg2); cursor: pointer;
+}
+.tb:hover { background: var(--bg3); color: var(--fg); }
+.tb.on { background: var(--bg3); color: var(--accent); }
+.tb svg { width: 18px; height: 18px; }
+.tb .g { font: 600 15.5px/1 var(--serif); }
+.tb .g.i { font-style: italic; }
+.tb .g.u { text-decoration: underline; text-underline-offset: 2px; }
+.tb .g.s { text-decoration: line-through; }
+.tb .g sup { font-size: .62em; margin-left: 1px; }
+.tsep { width: 1px; height: 20px; background: var(--border); margin: 0 5px; flex: none; }
+#tStyle {
+  width: 132px; justify-content: space-between; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px 0 11px;
+  border: 1px solid var(--border); background: var(--bg); font: 13px/1 var(--sans); color: var(--fg);
+}
+#tStyle svg { width: 14px; height: 14px; color: var(--muted); }
+#tStyle span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- Panneaux de l'éditeur ---------- */
+.epop { right: auto; }
+.epop.menu { min-width: 210px; }
+#pStyle button { padding: 7px 10px; color: var(--fg); }
+#pStyle .h1 { font: 650 20px/1.2 var(--serif); }
+#pStyle .h2 { font: 650 17px/1.2 var(--serif); }
+#pStyle .h3 { font: 650 15px/1.2 var(--serif); }
+#pStyle .h4 { font: 650 13.5px/1.2 var(--serif); }
+#pStyle .p { font: 14px/1.2 var(--serif); }
+#pStyle button.on, #pCall button.on { background: var(--bg3); }
+#pCall button i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+#pCall button span { flex: 1; }
+#pGrid { padding: 10px; }
+#pGrid .grid { display: grid; grid-template-columns: repeat(8, 18px); gap: 3px; }
+#pGrid .grid i { height: 18px; border: 1px solid var(--border); border-radius: 3px; background: var(--bg); }
+#pGrid .grid i.on { background: color-mix(in srgb, var(--accent) 35%, var(--bg)); border-color: var(--accent); }
+#pGrid .lbl { margin-top: 8px; text-align: center; color: var(--muted); font-size: 12.5px; }
+.efield { display: grid; gap: 8px; width: 340px; }
+.efield input, .efield textarea {
+  width: 100%; border: 1px solid var(--border); background: var(--bg); color: var(--fg); border-radius: 8px;
+  padding: 8px 10px; font: 13.5px var(--sans); outline: none;
+}
+.efield textarea { font: 13px/1.5 var(--mono); resize: vertical; min-height: 64px; }
+.efield input:focus, .efield textarea:focus { border-color: var(--accent); }
+.efield .row { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+.efield .row .hint { margin-right: auto; color: var(--muted); font-size: 12px; }
+.ebtn { border: 1px solid var(--border); background: var(--bg); border-radius: 8px; padding: 6px 12px; cursor: pointer; color: var(--fg2); font: 13px var(--sans); }
+.ebtn:hover { background: var(--bg3); color: var(--fg); }
+.ebtn.pri { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+.ebtn.pri:hover { filter: brightness(1.08); background: var(--accent); color: var(--bg); }
+#mPrev { min-height: 34px; max-height: 180px; overflow: auto; text-align: center; padding: 6px 4px; color: var(--fg); font-size: 15px; }
+#mPrev:empty::before { content: "Aperçu"; color: var(--muted); font: 12.5px var(--sans); }
+#mPrev.err { color: #e5534b; font: 12.5px var(--sans); }
+
+#tblBar {
+  position: fixed; z-index: 28; display: none; align-items: center; gap: 1px; padding: 3px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 6px 20px var(--shadow);
+}
+#tblBar.show { display: flex; }
+#tblBar .tb { min-width: 28px; height: 26px; padding: 0 4px; }
+#tblBar .tb svg { width: 16px; height: 16px; }
+
+/* ---------- Surface d'édition (rendu) ---------- */
+#ed { outline: none; min-height: 55vh; caret-color: var(--accent); }
+/* Comme le lecteur : seules les sections proches de l'écran sont mises en page. */
+.esec, #raw .rl { content-visibility: auto; contain-intrinsic-size: auto 1400px; }
+#ed > .esec:first-child > :first-child { margin-top: 0; }
+#ed > .esec:only-child > p:only-child:has(> br:only-child)::before { content: "Écris ici…"; color: var(--muted); position: absolute; pointer-events: none; }
+#content #ed a { cursor: text; }
+#content #ed table { border: 1px solid var(--border); margin: 1.2em 0; }
+#content #ed thead th { position: static; }
+#content #ed td, #content #ed th { min-width: 3em; height: 2.5em; }
+#content #ed tbody tr:hover { background: none; }
+#content #ed tbody tr:nth-child(even):hover { background: color-mix(in srgb, var(--bg2) 60%, transparent); }
+#content #ed hr { height: 3px; border-radius: 2px; cursor: default; }
+#ed img { cursor: default; }
+#ed .math { cursor: pointer; border-radius: 5px; transition: background-color .12s; user-select: all; }
+#ed .math:hover, #ed .math.sel { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+#ed .math-display { padding: .35em 0; }
+#ed .mathp, #ed p:has(> .math-display:only-child) { margin: 1em 0 !important; }
+#ed .math-display { margin: 0; }
+#ed input[type=checkbox] { cursor: pointer; }
+#ed .footnote-reference a { cursor: default; }
+
+.cb { position: relative; margin: 1.1em 0; }
+#content .cb pre {
+  margin: 0; font: .82em/1.55 var(--mono); white-space: pre; outline: none; min-height: 3.1em; padding-top: 24px;
+}
+#content .cb pre:focus { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.cbl {
+  position: absolute; top: 5px; right: 10px; z-index: 1; width: 120px; text-align: right; border: 0; outline: 0; background: transparent;
+  color: var(--muted); font: 11.5px/1.4 var(--mono); padding: 1px 2px; border-bottom: 1px solid transparent;
+}
+.cbl::placeholder { color: var(--muted); opacity: .55; }
+.cbl:focus { color: var(--fg); border-bottom-color: var(--accent); }
+
+.rawblock, .htmlblock { position: relative; margin: 1.1em 0; border: 1px dashed var(--border); border-radius: 8px; padding: 10px 12px; cursor: default; }
+.rawblock { font: .8em/1.5 var(--mono); color: var(--muted); white-space: pre-wrap; }
+.rawblock::after, .htmlblock::after {
+  content: "modifiable en vue Source"; position: absolute; top: 4px; right: 8px; font: 10.5px var(--sans); color: var(--muted); opacity: 0; transition: opacity .15s;
+}
+.htmlblock::after { content: "HTML — modifiable en vue Source"; }
+.rawblock:hover::after, .htmlblock:hover::after { opacity: .9; }
+
+/* ---------- Surface d'édition (source / texte brut) ---------- */
+#content #raw {
+  margin: 0; padding: 0; border: 0; border-radius: 0; background: none; outline: none; overflow: visible; min-height: 55vh;
+  font: .86em/1.65 var(--mono); white-space: pre-wrap; word-break: break-word; tab-size: 4; caret-color: var(--accent); color: var(--fg);
+}
+#content #raw.txt { font-size: .92em; }
+
+.welcome .acts { display: flex; gap: 10px; flex-wrap: wrap; }
+.welcome .new { border: 1px solid var(--border); background: var(--bg2); color: var(--fg); border-radius: 10px; padding: 11px 18px; font: 600 15px var(--sans); cursor: pointer; }
+.welcome .new:hover { background: var(--bg3); }
+.welcome .new kbd { margin-left: 8px; }
+
+@media print { #tools, #tblBar, .epop { display: none !important; } }
+
+/* Fenêtres étroites : l'essentiel reste dans la barre. */
+@media (max-width: 880px) {
+  body.editing #bFull, body.editing #bExport { display: none; }
+  .sw2 button { padding: 0 9px; }
+  .sw2 { margin: 0 2px; }
+}
+@media (max-width: 640px) {
+  body.editing #bHelp, body.editing #bNight { display: none; }
+  #tools::before, #tools::after { content: none; }
+}
