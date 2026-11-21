@@ -584,11 +584,12 @@
   const nf = n => Math.round(n).toLocaleString('fr-FR');
   app.setStats = st => {
     let box = $('#stats');
-    if (!box) { box = document.createElement('div'); box.id = 'stats'; body.appendChild(box); }
+    if (!box) { box = document.createElement('div'); box.id = 'stats'; $('#bar').insertBefore(box, $('#bSave') || $('#bZoom')); }
     if (!st || !st.chars) { box.hidden = true; return; }
     const min = st.words / 230;
     box.hidden = false;
-    box.textContent = `${nf(st.chars)} caractères · ${min < 1 ? '< 1' : nf(min)} min de lecture · ≈ ${nf(st.chars / 4)} tokens`;
+    const m = Math.round(min), time = min < 1 ? '< 1 min' : m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0');
+    box.textContent = `${nf(st.chars)} caractères · ${time} de lecture · ${nf(st.chars / 4)} tokens`;
     box.title = `${nf(st.words)} mots · lecture à 230 mots/min · tokens estimés à 1 pour 4 caractères`;
   };
   if (B.hasDoc) {

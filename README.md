@@ -31,7 +31,7 @@ Le Markdown est converti en Rust ([pulldown-cmark](https://github.com/pulldown-c
 - **Plein écran** F11 (barre masquée, réapparaît en haut de l'écran)
 - **Export PDF** direct et **export HTML autonome** (un seul fichier, avec sommaire, recherche et thèmes)
 - Reprise de la position de lecture, fichiers récents, rechargement automatique quand le fichier change
-- **Statistiques** du document en bas à droite : nombre de caractères, temps de lecture (230 mots/min) et estimation du nombre de tokens pour un LLM (environ 1 token pour 4 caractères)
+- **Statistiques** du document dans la barre : nombre de caractères, temps de lecture (230 mots/min) et estimation du nombre de tokens pour un LLM (environ 1 token pour 4 caractères)
 - **Éditeur intégré** pour les `.md` et les `.txt` (application Windows) : voir ci-dessous. En lecture, rien n'est jamais modifié
 
 ![Thème Nuit et panneau Apparence](docs/screenshot-nuit.png)
